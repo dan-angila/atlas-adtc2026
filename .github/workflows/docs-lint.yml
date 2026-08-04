@@ -1,0 +1,35 @@
+# Documentation-only CI gate for the foundation stage of the repository.
+#
+# This is deliberately scoped to Markdown linting only. No Rust workspace
+# exists yet (see docs/roadmap/development-roadmap.md, Phase 0/1) — a
+# cargo fmt/clippy/test workflow should be added in the same PR that adds
+# the Cargo workspace, not stubbed out ahead of time with nothing to lint.
+
+name: docs-lint
+
+on:
+  pull_request:
+    paths:
+      - "**/*.md"
+  push:
+    branches: [main]
+    paths:
+      - "**/*.md"
+
+jobs:
+  markdown-lint:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Lint Markdown
+        uses: DavidAnson/markdownlint-cli2-action@v16
+        with:
+          globs: "**/*.md"
+
+      - name: Check for broken relative links
+        uses: gaurav-nelson/github-action-markdown-link-check@v1
+        with:
+          use-quiet-mode: "yes"
+          check-modified-files-only: "yes"
+          config-file: ".github/markdown-link-check-config.json"

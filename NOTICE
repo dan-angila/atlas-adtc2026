@@ -1,0 +1,16 @@
+BRIX Atlas
+Copyright 2026 BRIX Atlas Contributors
+
+This product includes software developed as part of the BRIX Atlas
+project (https://github.com/OWNER/atlas-adtc2026), originally created for
+the Africa Deep Tech Challenge 2026.
+
+Licensed under the Apache License, Version 2.0. See LICENSE for the full
+license text.
+
+This NOTICE file is required by Section 4(d) of the Apache License,
+Version 2.0, and must be preserved, in readable form, by any Derivative
+Works distributed under that License. Third-party dependency notices are
+tracked separately and generated from the dependency manifest once the
+Rust workspace exists (see docs/roadmap/development-roadmap.md, Phase 1) —
+this file will be updated at that point to include them.

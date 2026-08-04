@@ -1,0 +1,19 @@
+# markdownlint configuration — relaxed on rules that conflict with
+# prose-heavy documentation (ADRs, roadmaps) in favor of readability.
+
+default: true
+
+# Line length: documentation here is prose, not code — don't force
+# hard-wrapping that fights natural sentence structure.
+MD013: false
+
+# Allow inline HTML sparingly (e.g. diagrams, tables needing it).
+MD033: false
+
+# Allow duplicate headings across different files (e.g. "Context",
+# "Decision" repeat in every ADR by design — that's the template).
+MD024:
+  siblings_only: true
+
+# Allow bare URLs in reference-style docs.
+MD034: false

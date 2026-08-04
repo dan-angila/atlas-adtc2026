@@ -1,0 +1,34 @@
+# Rust (workspace not yet created — pre-declared for Phase 1)
+/target/
+**/*.rs.bk
+Cargo.lock.bak
+
+# Tauri / front end
+/ui/node_modules/
+/ui/dist/
+/ui/.vite/
+
+# Model files and knowledge bases — never committed; these are large
+# binary artifacts the user provides or downloads locally, and knowledge
+# bases may contain confidential enterprise document content (SECURITY.md).
+*.gguf
+*.sqlite
+*.sqlite3
+*.db
+/models/
+/knowledge-bases/
+
+# Benchmark/evaluation raw output that isn't the curated report itself
+/docs/benchmarks/**/raw/
+/docs/evaluation/**/raw/
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+*.swp
+.vscode/
+.idea/
+
+# Environment / local config
+.env
+.env.local

@@ -1,0 +1,7 @@
+{
+  "ignorePatterns": [
+    { "pattern": "^https://github.com/OWNER/" }
+  ],
+  "retryOn429": true,
+  "aliveStatusCodes": [200, 206, 429]
+}
