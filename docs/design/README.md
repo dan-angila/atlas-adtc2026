@@ -32,6 +32,19 @@ didn't need it.
 
 ## Status
 
-No design notes exist yet — there's no implementation for them to
-document. The first are expected alongside Phase 2 (Document Ingestion)
-per `docs/roadmap/documentation-roadmap.md`.
+Three pre-implementation specifications exist, broader in scope than the
+"narrow decision" convention above — written ahead of Phase 2/3/6 to give
+that implementation work a design target, per this project's
+design-before-code discipline:
+
+- `rag-pipeline.md` — Document Ingestion + Knowledge Retrieval, ahead of
+  Phase 2/3.
+- `performance-optimization.md` — cross-cutting; ties real, already-
+  measured numbers to named, tracked gaps (e.g. no KV-cache reuse across
+  conversation turns yet).
+- `ux-specification.md` — the desktop shell's experience, ahead of
+  Phase 6.
+
+Narrower, single-decision design notes (this document's original
+convention) are still expected to start appearing alongside Phase 2
+implementation itself.
