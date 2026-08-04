@@ -1,9 +1,6 @@
-# Documentation-only CI gate for the foundation stage of the repository.
-#
-# This is deliberately scoped to Markdown linting only. No Rust workspace
-# exists yet (see docs/roadmap/development-roadmap.md, Phase 0/1) — a
-# cargo fmt/clippy/test workflow should be added in the same PR that adds
-# the Cargo workspace, not stubbed out ahead of time with nothing to lint.
+# Documentation CI gate: Markdown lint + broken relative-link check.
+# Rust and frontend code have their own workflows (rust-ci.yml,
+# frontend-ci.yml) — this one stays scoped to docs.
 
 name: docs-lint
 
@@ -32,4 +29,5 @@ jobs:
         with:
           use-quiet-mode: "yes"
           check-modified-files-only: "yes"
+          base-branch: "main"
           config-file: ".github/markdown-link-check-config.json"
