@@ -46,9 +46,11 @@ architecture.
 
 ## Current status
 
-**Engineering foundation stage.** Architecture, ADRs, governance, and
-process are established; application code has not yet been written — on
-purpose. See [`docs/baseline/engineering-baseline.md`](docs/baseline/engineering-baseline.md)
+**Engineering infrastructure stage.** The Rust workspace, Tauri desktop
+shell, and React front end are scaffolded, compile, and run — with **no
+business logic, RAG, document ingestion, retrieval, or inference
+implementation yet**, by design. See
+[`docs/baseline/engineering-baseline.md`](docs/baseline/engineering-baseline.md)
 for a five-minute orientation to exactly what exists today, and
 [`docs/roadmap/development-roadmap.md`](docs/roadmap/development-roadmap.md)
 for what's next.
@@ -78,6 +80,7 @@ individual decisions in [`docs/adr/`](docs/adr/):
 | [0006](docs/adr/0006-quantization-model-tiering-ram-envelope.md) | Quantization strategy and model tiering for 8GB RAM |
 | [0007](docs/adr/0007-tauri-desktop-shell.md) | Tauri as the desktop shell |
 | [0008](docs/adr/0008-apache-2.0-license.md) | Apache 2.0 license |
+| [0009](docs/adr/0009-crate-packaging-module-boundaries.md) | Bounded contexts packaged as modules within one crate, not five separate crates |
 
 ## Repository structure
 
@@ -103,12 +106,23 @@ atlas-adtc2026/
 │   ├── design/                   # narrow, non-ADR design notes
 │   └── engineering-standards.md  # code quality, testing, security, review standards
 │
-├── scripts/                    # automation, benchmark harnesses, lint tooling
-├── tests/                      # cross-crate / end-to-end tests (once code exists)
-├── crates/                     # Rust workspace (Phase 1 — not yet created)
-├── ui/                         # Tauri front end (Phase 6 — not yet created)
+├── scripts/                    # automation: dep/license checks, module-boundary lint, git hooks setup
+├── tests/                      # cross-crate / end-to-end tests (empty until Phase 2+)
+├── crates/                     # Rust workspace
+│   ├── atlas-domain/            # pure domain types, no I/O
+│   ├── atlas-config/            # local, offline configuration loading
+│   ├── atlas-logging/           # local-only structured logging (tracing)
+│   ├── atlas-engine/            # bounded-context modules (no business logic yet)
+│   └── atlas-app/               # Tauri composition root
+├── ui/                         # React + TypeScript + Vite front end
 └── .github/                    # issue/PR templates, labels, CI workflows
 ```
+
+No business logic exists in any crate yet — `atlas-engine`'s bounded-
+context modules are documented stubs, and `atlas-app` exposes exactly one
+infrastructure command (`get_app_info`). See
+[`docs/roadmap/development-roadmap.md`](docs/roadmap/development-roadmap.md)
+for what's next.
 
 ## Competition constraints
 
@@ -124,17 +138,26 @@ atlas-adtc2026/
 
 ## Getting started
 
-There is no build yet — see [Current status](#current-status). To get
-oriented as a contributor:
+```bash
+# One-time setup
+./scripts/setup-hooks.sh
+cd ui && npm install && cd ..
+
+# Build and test the Rust workspace
+cargo build --workspace
+cargo test --workspace
+
+# Run the desktop app in development (requires cargo install tauri-cli --version "^2")
+cd crates/atlas-app && cargo tauri dev
+```
+
+Full toolchain requirements (including Linux system libraries for Tauri)
+are in [`CONTRIBUTING.md`](CONTRIBUTING.md#development-environment). To
+get oriented as a contributor beyond just building it:
 
 1. Read [`docs/baseline/engineering-baseline.md`](docs/baseline/engineering-baseline.md).
 2. Read [`docs/architecture/overview.md`](docs/architecture/overview.md).
 3. Read [`CONTRIBUTING.md`](CONTRIBUTING.md).
-
-Once the Rust workspace lands (Phase 1), this section will be replaced
-with real build/run instructions — not before, since a placeholder
-"getting started" guide for code that doesn't exist is worse than an
-honest "not yet."
 
 ## Documentation map
 

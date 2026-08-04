@@ -1,0 +1,98 @@
+:root {
+  color-scheme: light dark;
+  --bg: #f8fafc;
+  --fg: #0f172a;
+  --card-bg: #ffffff;
+  --border: #e2e8f0;
+  --accent: #0284c7;
+  --muted: #64748b;
+  --error: #b91c1c;
+
+  font-family:
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    sans-serif;
+  line-height: 1.5;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f172a;
+    --fg: #f1f5f9;
+    --card-bg: #1e293b;
+    --border: #334155;
+    --accent: #38bdf8;
+    --muted: #94a3b8;
+    --error: #fca5a5;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+}
+
+.shell {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 3rem 1.5rem;
+}
+
+h1 {
+  margin-bottom: 0.25rem;
+  color: var(--accent);
+}
+
+.tagline {
+  margin-top: 0;
+  color: var(--muted);
+}
+
+.status-card {
+  margin: 2rem 0;
+  padding: 1.25rem 1.5rem;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+}
+
+.status-card dl {
+  margin: 0;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.5rem 1rem;
+}
+
+.status-card dt {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.status-card dd {
+  margin: 0;
+  font-family: ui-monospace, monospace;
+}
+
+.error {
+  color: var(--error);
+  margin: 0;
+}
+
+.notice {
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.notice code {
+  font-family: ui-monospace, monospace;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 0.25rem;
+  padding: 0.1rem 0.35rem;
+}

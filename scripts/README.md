@@ -18,8 +18,15 @@ model-download/verification helpers, dependency-boundary lint checks
 - Every script takes `--help` seriously enough to be self-documenting;
   this README indexes them, it doesn't duplicate their usage docs.
 
-## Status
+## Available scripts
 
-Empty. The first expected script is the module-boundary dependency lint
-referenced in `docs/architecture/module-boundaries.md`, targeted for
-Phase 0/1 of `docs/roadmap/development-roadmap.md`.
+| Script | Purpose |
+|---|---|
+| `check-module-boundaries.py` | Heuristic check for cross-bounded-context boundary violations in `atlas-engine` (module-boundaries.md, rule 3). Run: `python3 scripts/check-module-boundaries.py` |
+| `check-deps.sh` | Runs `cargo deny check` — dependency licensing (ADR-0008), duplicate/banned crates, yanked-crate advisories. Requires `cargo install cargo-deny --locked` once per machine. |
+| `setup-hooks.sh` | Points this repo's git hooks at `.githooks/` (run once after cloning). |
+
+`check-module-boundaries.py` is explicitly a heuristic, not a full
+semantic check — see its module docstring for what it does and doesn't
+catch, and its named upgrade path once `atlas-engine` has enough real
+content to outgrow it.

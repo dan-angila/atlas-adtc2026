@@ -12,15 +12,16 @@ Each phase lists its **exit criteria** — what must be true for the phase
 to be considered done, not just "code was written." This mirrors the
 project's Definition of Done (`docs/execution/definition-of-done.md`).
 
-## Phase 0 — Engineering Foundation *(current phase)*
+## Phase 0 — Engineering Foundation *(complete)*
 
 Establish the repository as a credible long-term open-source project
 before any application code exists.
 
 - [x] Repository structure, README, governance files (this deliverable)
-- [x] Architecture baseline and initial ADRs (0001–0008)
-- [ ] CI skeleton: lint/format checks for Markdown and (once created)
-      Rust, dependency-boundary lint per `module-boundaries.md`
+- [x] Architecture baseline and initial ADRs (0001–0009)
+- [x] CI skeleton: lint/format checks for Markdown, Rust (fmt/clippy/test/
+      cargo-deny), and the front end (eslint/prettier/build); dependency-
+      boundary lint per `module-boundaries.md`
 - [ ] GitHub labels, milestones, and project board provisioned from the
       proposals in `docs/execution/`
 
@@ -28,18 +29,25 @@ before any application code exists.
 vision, constraints, architecture, and how to contribute without asking a
 human anything the docs should already answer.
 
-## Phase 1 — Core Engine Skeleton
+## Phase 1 — Core Engine Skeleton *(in progress — infrastructure done)*
 
 Stand up the Rust workspace and prove the hexagonal boundaries from
 `module-boundaries.md` hold for a trivial end-to-end path.
 
-- [ ] Workspace + crate scaffolding (`atlas-domain`, one bounded-context
-      crate, `atlas-app`)
+- [x] Workspace + crate scaffolding (`atlas-domain`, `atlas-engine`,
+      `atlas-config`, `atlas-logging`, `atlas-app`) — see ADR-0009 for the
+      module-vs-crate packaging decision
+- [x] Tauri desktop shell + React front end, wired end to end through one
+      infrastructure command (`get_app_info`)
+- [x] Dependency-boundary CI check is live (`scripts/check-module-
+      boundaries.py`, run in `rust-ci.yml`)
 - [ ] Domain types for `Document`, `Chunk`, `KnowledgeBase` (ADR-0005)
+- [ ] Resolve the inference process-isolation open item (ADR-0001
+      required action 1) — needed before the next item, since it
+      determines whether the adapter runs in-process or as a child
+      process
 - [ ] `InferenceEngine` port + llama.cpp FFI adapter; load a small GGUF
-      model and generate one token end-to-end via a CLI harness
-- [ ] Dependency-boundary CI check is live and failing builds that violate
-      `module-boundaries.md`'s rules
+      model and generate one token end-to-end
 
 **Exit criteria:** `cargo run` on a CLI harness loads a model and returns
 a completion, with the call path running entirely through domain → port →

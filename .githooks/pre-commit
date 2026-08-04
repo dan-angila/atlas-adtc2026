@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+# Pre-commit gate mirroring the non-negotiable CI checks in
+# docs/engineering-standards.md: cargo fmt, cargo clippy (Rust changes),
+# and eslint/prettier (frontend changes). Enabled via
+# `scripts/setup-hooks.sh` — not active until a contributor opts in.
+set -euo pipefail
+
+# git invokes hooks with a minimal, non-login shell environment, so
+# rustup's PATH setup (normally sourced from shell rc files) isn't
+# present here — source it explicitly if available.
+if [ -f "$HOME/.cargo/env" ]; then
+  # shellcheck source=/dev/null
+  . "$HOME/.cargo/env"
+fi
+
+cd "$(git rev-parse --show-toplevel)"
+
+staged_files() {
+  git diff --cached --name-only --diff-filter=ACM
+}
+
+rust_changed=false
+frontend_changed=false
+
+while IFS= read -r file; do
+  case "$file" in
+    *.rs|Cargo.toml|Cargo.lock) rust_changed=true ;;
+    ui/*) frontend_changed=true ;;
+  esac
+done < <(staged_files)
+
+if [ "$rust_changed" = true ]; then
+  echo "==> cargo fmt --check"
+  cargo fmt --check
+
+  echo "==> cargo clippy -- -D warnings"
+  cargo clippy --workspace --all-targets -- -D warnings
+fi
+
+if [ "$frontend_changed" = true ] && [ -d ui/node_modules ]; then
+  echo "==> npm run lint (ui/)"
+  (cd ui && npm run lint)
+
+  echo "==> npm run format:check (ui/)"
+  (cd ui && npm run format:check)
+fi
+
+if [ "$frontend_changed" = true ] && [ ! -d ui/node_modules ]; then
+  echo "warning: ui/ changed but ui/node_modules is missing — run 'npm install' in ui/ to enable frontend pre-commit checks" >&2
+fi
+
+exit 0

@@ -81,12 +81,59 @@ bounded context, a change to the module-boundary rules):
 
 ## Development environment
 
-Once the Rust workspace exists (Phase 1), this section will specify exact
-toolchain versions, build instructions, and how to run the test suite
-locally. Tracked as a documentation requirement for Phase 1 in
-`docs/roadmap/documentation-roadmap.md` — it isn't written yet because
-there is nothing to build yet, and a stale "getting started" guide is
-worse than none.
+The Rust workspace and Tauri desktop shell exist as of the engineering
+infrastructure bootstrap (`docs/roadmap/development-roadmap.md`, Phase 1
+scaffolding). No business logic, RAG, ingestion, or inference
+implementation exists yet — see `docs/baseline/engineering-baseline.md`
+for current state.
+
+**Toolchain:**
+
+- Rust — pinned in `rust-toolchain.toml` (install via
+  [rustup](https://rustup.rs); `cargo` will pick up the pinned version
+  automatically).
+- Node.js 22+ and npm, for the `ui/` front end.
+- Linux (Ubuntu 22.04, the reference target) build dependencies for
+  Tauri:
+  ```
+  sudo apt install pkg-config libgtk-3-dev libwebkit2gtk-4.1-dev \
+    libayatana-appindicator3-dev librsvg2-dev libsoup-3.0-dev
+  ```
+- Optional: `cargo install cargo-deny --locked` for `scripts/check-deps.sh`.
+
+**One-time setup:**
+
+```bash
+./scripts/setup-hooks.sh   # enables pre-commit fmt/clippy/lint checks
+cd ui && npm install
+```
+
+**Building and testing the Rust workspace:**
+
+```bash
+cargo build --workspace
+cargo test --workspace
+cargo fmt --check
+cargo clippy --workspace --all-targets -- -D warnings
+python3 scripts/check-module-boundaries.py
+```
+
+**Running the desktop app in development** (requires `cargo install
+tauri-cli --version "^2" --locked`, one-time):
+
+```bash
+cd crates/atlas-app
+cargo tauri dev
+```
+
+**Front end only** (type-check, lint, build, without Tauri):
+
+```bash
+cd ui
+npm run build   # tsc -b && vite build
+npm run lint
+npm run format:check
+```
 
 ## Code of Conduct
 

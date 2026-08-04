@@ -1,4 +1,4 @@
-# Rust (workspace not yet created — pre-declared for Phase 1)
+# Rust
 /target/
 **/*.rs.bk
 Cargo.lock.bak
@@ -7,6 +7,9 @@ Cargo.lock.bak
 /ui/node_modules/
 /ui/dist/
 /ui/.vite/
+/ui/.ts-build/
+/ui/*.tsbuildinfo
+/crates/atlas-app/gen/
 
 # Model files and knowledge bases — never committed; these are large
 # binary artifacts the user provides or downloads locally, and knowledge
