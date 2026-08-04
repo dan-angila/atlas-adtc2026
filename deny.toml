@@ -16,7 +16,39 @@ no-default-features = false
 db-path = "~/.cargo/advisory-db"
 db-urls = ["https://github.com/rustsec/advisory-db"]
 yanked = "deny"
-ignore = []
+# Every entry below is a transitive dependency of Tauri's Linux (GTK3 +
+# WebKitGTK) backend (crates/atlas-app -> tauri -> gtk/webkit2gtk/...),
+# not something this project chose or can swap independently — see
+# docs/adr/0007-tauri-desktop-shell.md. Each advisory below states
+# explicitly that no safe upgrade is available; ignoring them here is the
+# documented, standard cargo-deny practice for exactly that situation,
+# not a decision to accept unreviewed risk. Revisit whenever `cargo
+# update` pulls a newer tauri/gtk-rs generation that drops them, or a
+# `cargo deny check` run reports one of these IDs is no longer present.
+ignore = [
+    # gtk-rs GTK3 bindings — unmaintained (superseded by gtk-rs v4-based
+    # gtk crates, which Tauri's Linux backend does not yet use).
+    "RUSTSEC-2024-0411", # atk
+    "RUSTSEC-2024-0412", # atk-sys
+    "RUSTSEC-2024-0413", # gdk
+    "RUSTSEC-2024-0414", # gdk-pixbuf
+    "RUSTSEC-2024-0415", # gdk-pixbuf-sys
+    "RUSTSEC-2024-0416", # gdk-sys
+    "RUSTSEC-2024-0417", # gdkwayland-sys
+    "RUSTSEC-2024-0418", # gdkx11
+    "RUSTSEC-2024-0419", # gdkx11-sys
+    "RUSTSEC-2024-0420", # gtk
+    # proc-macro-error — unmaintained, pulled in transitively via the
+    # gtk-rs chain above.
+    "RUSTSEC-2024-0370",
+    # The rust-unic project (all `unic-*` crates) is unmaintained,
+    # pulled in via tauri-utils -> urlpattern.
+    "RUSTSEC-2025-0075", # unic-char-range
+    "RUSTSEC-2025-0080", # unic-common
+    "RUSTSEC-2025-0081", # unic-char-property
+    "RUSTSEC-2025-0098", # unic-ucd-version
+    "RUSTSEC-2025-0100", # unic-ucd-ident
+]
 
 [licenses]
 version = 2
@@ -25,6 +57,7 @@ version = 2
 # addition here — that review is the point.
 allow = [
     "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
     "MIT",
     "BSD-2-Clause",
     "BSD-3-Clause",
@@ -39,6 +72,14 @@ confidence-threshold = 0.8
 [bans]
 multiple-versions = "warn"
 wildcards = "deny"
+# Workspace-internal crates (atlas-domain, atlas-ipc, ...) are declared
+# as `path = "../..."` dependencies without a `version` field, which
+# cargo-deny's wildcard check otherwise flags — correctly, for a
+# registry dependency, but not for an in-workspace path dependency that
+# can only ever resolve to the copy right next to it. This option keeps
+# `wildcards = "deny"` doing real work against actual external wildcard
+# dependencies while not flagging normal workspace-internal references.
+allow-wildcard-paths = true
 # Cloud AI inference SDKs — the Offline Policy Engine's structural
 # enforcement (docs/adr's "zero cloud inference" requirement). Keep in
 # sync with BANNED_DEPENDENCY_NAME_PATTERNS in
