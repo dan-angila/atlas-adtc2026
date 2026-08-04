@@ -1,6 +1,6 @@
 [package]
 name = "atlas-engine"
-description = "BRIX Atlas bounded contexts (Document Ingestion, Knowledge Retrieval, Inference & Generation, Conversation & Session, Reporting & Authoring), packaged as modules per ADR-0009."
+description = "BRIX Atlas bounded contexts (Document Ingestion, Knowledge Retrieval, Inference & Generation, Conversation & Session, Reporting & Authoring), packaged as modules per ADR-0009. Inference & Generation is the Atlas Runtime."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -13,3 +13,12 @@ publish.workspace = true
 workspace = true
 
 [dependencies]
+atlas-domain = { path = "../atlas-domain" }
+atlas-ipc = { path = "../atlas-ipc" }
+sysinfo = { workspace = true }
+sha2 = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }

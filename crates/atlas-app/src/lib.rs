@@ -62,8 +62,11 @@ pub fn run() {
     // start of `main`) there is no fallback that wouldn't itself require
     // logging to report.
     #[allow(clippy::expect_used)]
-    let _logging_guard = atlas_logging::init(&LoggingConfig { level, log_dir: None })
-        .expect("logging must initialize exactly once, at startup");
+    let _logging_guard = atlas_logging::init(&LoggingConfig {
+        level,
+        log_dir: None,
+    })
+    .expect("logging must initialize exactly once, at startup");
 
     tracing::info!(version = env!("CARGO_PKG_VERSION"), "starting BRIX Atlas");
 
@@ -90,10 +93,19 @@ mod tests {
 
     #[test]
     fn log_level_conversion_covers_every_variant() {
-        assert_eq!(to_tracing_level(atlas_config::LogLevel::Trace), Level::TRACE);
-        assert_eq!(to_tracing_level(atlas_config::LogLevel::Debug), Level::DEBUG);
+        assert_eq!(
+            to_tracing_level(atlas_config::LogLevel::Trace),
+            Level::TRACE
+        );
+        assert_eq!(
+            to_tracing_level(atlas_config::LogLevel::Debug),
+            Level::DEBUG
+        );
         assert_eq!(to_tracing_level(atlas_config::LogLevel::Info), Level::INFO);
         assert_eq!(to_tracing_level(atlas_config::LogLevel::Warn), Level::WARN);
-        assert_eq!(to_tracing_level(atlas_config::LogLevel::Error), Level::ERROR);
+        assert_eq!(
+            to_tracing_level(atlas_config::LogLevel::Error),
+            Level::ERROR
+        );
     }
 }

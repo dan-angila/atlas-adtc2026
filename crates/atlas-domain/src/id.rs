@@ -36,7 +36,10 @@ impl<T> Id<T> {
     /// Generates a new, random (v4) identifier.
     #[must_use]
     pub fn new() -> Self {
-        Self { value: Uuid::new_v4(), marker: PhantomData }
+        Self {
+            value: Uuid::new_v4(),
+            marker: PhantomData,
+        }
     }
 
     /// Wraps an existing [`Uuid`] as a typed identifier.
@@ -46,7 +49,10 @@ impl<T> Id<T> {
     /// generating a fresh one.
     #[must_use]
     pub fn from_uuid(value: Uuid) -> Self {
-        Self { value, marker: PhantomData }
+        Self {
+            value,
+            marker: PhantomData,
+        }
     }
 
     /// Returns the underlying [`Uuid`].
@@ -77,6 +83,18 @@ impl<T> PartialEq for Id<T> {
 }
 
 impl<T> Eq for Id<T> {}
+
+impl<T> PartialOrd for Id<T> {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl<T> Ord for Id<T> {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.value.cmp(&other.value)
+    }
+}
 
 impl<T> std::hash::Hash for Id<T> {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
@@ -128,6 +146,18 @@ mod tests {
     }
 
     #[test]
+    fn ids_are_totally_ordered_by_their_underlying_uuid() {
+        let a: Id<Marker> = Id::from_uuid(Uuid::from_u128(1));
+        let b: Id<Marker> = Id::from_uuid(Uuid::from_u128(2));
+        assert!(a < b);
+
+        let mut set = std::collections::BTreeSet::new();
+        set.insert(a);
+        set.insert(b);
+        assert_eq!(set.len(), 2, "Id<T> must work as a BTreeMap/BTreeSet key");
+    }
+
+    #[test]
     fn from_uuid_round_trips() {
         let uuid = Uuid::new_v4();
         let id: Id<Marker> = Id::from_uuid(uuid);
@@ -155,6 +185,7 @@ mod tests {
     fn copy_and_clone_produce_equal_values() {
         let id: Id<Marker> = Id::new();
         let copied = id;
+        #[allow(clippy::clone_on_copy)] // deliberately exercising Clone, not just Copy
         let cloned = id.clone();
         assert_eq!(id, copied);
         assert_eq!(id, cloned);

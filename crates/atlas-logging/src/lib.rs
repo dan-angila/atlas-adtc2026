@@ -63,7 +63,10 @@ pub struct LoggingConfig {
 
 impl Default for LoggingConfig {
     fn default() -> Self {
-        Self { level: Level::INFO, log_dir: None }
+        Self {
+            level: Level::INFO,
+            log_dir: None,
+        }
     }
 }
 
@@ -151,8 +154,10 @@ mod tests {
     #[test]
     fn init_succeeds_once_and_errors_on_second_call() {
         let dir = tempfile::tempdir().unwrap();
-        let config =
-            LoggingConfig { level: Level::DEBUG, log_dir: Some(dir.path().to_path_buf()) };
+        let config = LoggingConfig {
+            level: Level::DEBUG,
+            log_dir: Some(dir.path().to_path_buf()),
+        };
 
         let first = init(&config);
         assert!(first.is_ok());

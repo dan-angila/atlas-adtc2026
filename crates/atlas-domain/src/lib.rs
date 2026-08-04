@@ -7,18 +7,37 @@
 //! type system alone, and it is the single rule the rest of the
 //! hexagonal architecture (ADR-0005) depends on holding.
 //!
-//! As of the engineering-foundation-bootstrap stage, this crate contains
-//! only the [`Id`] type — a typed identifier every future domain concept
-//! (`Document`, `Chunk`, `Conversation`, ...) will use once those
-//! concepts are designed in their owning bounded context. Domain entities
-//! themselves are deliberately not modeled yet: that is business-logic
-//! design work scoped to Phase 2+ of
-//! `docs/roadmap/development-roadmap.md`, not to today's infrastructure
-//! bootstrap.
+//! Contents:
+//!
+//! - [`Id`] — a typed identifier used across every bounded context.
+//! - [`model`] — model catalog vocabulary for the Atlas Runtime's Model
+//!   Registry ([`ModelId`], [`ModelFamily`], [`Quantization`],
+//!   [`ModelDescriptor`]).
+//! - [`language`] — Language Registry vocabulary ([`LanguageCode`],
+//!   [`TextDirection`], [`LanguageDescriptor`]).
+//! - [`runtime`] — Runtime lifecycle and generation-request vocabulary
+//!   ([`RamTier`], [`RuntimeStatus`], [`InferenceParams`]).
+//!
+//! Document/Chunk/KnowledgeBase/Conversation types (the other bounded
+//! contexts) are not modeled yet — that is business-logic design work
+//! scoped to later roadmap phases, not to the Runtime bootstrap this
+//! crate currently supports.
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
 mod id;
 
+/// Language Registry vocabulary.
+pub mod language;
+
+/// Model Registry vocabulary.
+pub mod model;
+
+/// Runtime lifecycle and generation-request vocabulary.
+pub mod runtime;
+
 pub use id::Id;
+pub use language::{LanguageCode, LanguageDescriptor, TextDirection};
+pub use model::{Model, ModelDescriptor, ModelFamily, ModelId, Quantization};
+pub use runtime::{InferenceParams, RamTier, RuntimeStatus};

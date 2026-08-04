@@ -46,12 +46,15 @@ architecture.
 
 ## Current status
 
-**Engineering infrastructure stage.** The Rust workspace, Tauri desktop
-shell, and React front end are scaffolded, compile, and run — with **no
-business logic, RAG, document ingestion, retrieval, or inference
-implementation yet**, by design. See
-[`docs/baseline/engineering-baseline.md`](docs/baseline/engineering-baseline.md)
-for a five-minute orientation to exactly what exists today, and
+**The Atlas Runtime is real and validated against a live model.** The
+Rust workspace, Tauri desktop shell, React front end, and the full
+inference Runtime (model loading, real llama.cpp generation, GGUF
+inspection, RAM-tier detection, language registry, benchmarking) compile,
+run, and are backed by 103 passing tests — with **no document ingestion,
+RAG, retrieval, or enterprise-workflow implementation yet**, by design.
+See [`docs/baseline/engineering-baseline.md`](docs/baseline/engineering-baseline.md)
+for a five-minute orientation, [`docs/architecture/runtime-architecture.md`](docs/architecture/runtime-architecture.md)
+for the Runtime's design, and
 [`docs/roadmap/development-roadmap.md`](docs/roadmap/development-roadmap.md)
 for what's next.
 
@@ -81,6 +84,7 @@ individual decisions in [`docs/adr/`](docs/adr/):
 | [0007](docs/adr/0007-tauri-desktop-shell.md) | Tauri as the desktop shell |
 | [0008](docs/adr/0008-apache-2.0-license.md) | Apache 2.0 license |
 | [0009](docs/adr/0009-crate-packaging-module-boundaries.md) | Bounded contexts packaged as modules within one crate, not five separate crates |
+| [0010](docs/adr/0010-inference-worker-process-isolation.md) | The llama.cpp FFI adapter runs in a supervised child process, not in-process |
 
 ## Repository structure
 
@@ -96,7 +100,8 @@ atlas-adtc2026/
 │
 ├── docs/
 │   ├── baseline/                # current-state snapshot, orientation doc
-│   ├── architecture/            # architecture overview, system context, module boundaries
+│   ├── architecture/            # architecture overview, system context, module boundaries,
+│   │                             # runtime-architecture.md (Atlas Runtime design record)
 │   ├── adr/                     # Architecture Decision Records
 │   ├── execution/                # Definition of Done, GitHub labels/milestones/board
 │   ├── research/                 # exploratory work (model comparisons, prompt experiments)
@@ -112,15 +117,21 @@ atlas-adtc2026/
 │   ├── atlas-domain/            # pure domain types, no I/O
 │   ├── atlas-config/            # local, offline configuration loading
 │   ├── atlas-logging/           # local-only structured logging (tracing)
-│   ├── atlas-engine/            # bounded-context modules (no business logic yet)
+│   ├── atlas-ipc/                # wire protocol for the inference worker (ADR-0010)
+│   ├── atlas-engine/            # bounded contexts — inference is the Atlas Runtime
+│   ├── atlas-inference-worker/  # isolated llama.cpp FFI adapter (separate process)
 │   └── atlas-app/               # Tauri composition root
 ├── ui/                         # React + TypeScript + Vite front end
 └── .github/                    # issue/PR templates, labels, CI workflows
 ```
 
-No business logic exists in any crate yet — `atlas-engine`'s bounded-
-context modules are documented stubs, and `atlas-app` exposes exactly one
-infrastructure command (`get_app_info`). See
+The Atlas Runtime (`atlas-engine`'s `inference` module) is real and
+validated against a live model — see
+[`docs/architecture/runtime-architecture.md`](docs/architecture/runtime-architecture.md).
+The other four bounded contexts (ingestion, retrieval, conversation,
+reporting) remain documented stubs, and `atlas-app` exposes exactly one
+infrastructure command (`get_app_info`) — it is not yet wired to the
+Runtime. See
 [`docs/roadmap/development-roadmap.md`](docs/roadmap/development-roadmap.md)
 for what's next.
 

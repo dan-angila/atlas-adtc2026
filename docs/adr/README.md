@@ -39,6 +39,7 @@ an issue, don't silently pick a winner.
 | [0007](0007-tauri-desktop-shell.md) | Tauri as the desktop application shell | Accepted |
 | [0008](0008-apache-2.0-license.md) | Apache License 2.0 as the project license | Accepted |
 | [0009](0009-crate-packaging-module-boundaries.md) | Collapse bounded-context packaging into module boundaries within two crates | Accepted |
+| [0010](0010-inference-worker-process-isolation.md) | Supervised child process isolation for the inference worker | Accepted |
 
 ## Template
 

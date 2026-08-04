@@ -3,15 +3,13 @@
 //! packaged as modules within one crate per ADR-0009
 //! (`docs/adr/0009-crate-packaging-module-boundaries.md`).
 //!
-//! Each module is currently a placeholder for its bounded context's
-//! future domain/ports/application/adapters split — see
-//! `docs/architecture/module-boundaries.md`. No business logic,
-//! inference, retrieval, or document-ingestion implementation exists
-//! yet; that work is scoped to Phase 2 onward of
-//! `docs/roadmap/development-roadmap.md`. Today's scope is
-//! infrastructure only: proving the module boundaries exist, are
-//! independently compiled and tested, and are ready to receive real
-//! ports and adapters without a structural rework.
+//! [`inference`] is the Atlas Runtime — see that module's documentation
+//! for the full component map. The other four bounded contexts
+//! ([`ingestion`], [`retrieval`], [`conversation`], [`reporting`])
+//! remain documented placeholders: no ingestion, retrieval, or
+//! enterprise-workflow logic exists yet, per the explicit scope of the
+//! Runtime bootstrap that built [`inference`] out
+//! (`docs/roadmap/development-roadmap.md`).
 //!
 //! **Boundary rule** (`docs/architecture/module-boundaries.md`, rule 3):
 //! no module below may reach into another module's private items. As

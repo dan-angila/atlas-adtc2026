@@ -1,6 +1,6 @@
 # ADR-0001: Modular monolith over microservices for deployment topology
 
-Status: Accepted
+Status: Accepted (crash-isolation claim in Consequences corrected by [ADR-0010](0010-inference-worker-process-isolation.md) — the inference worker runs as a supervised child process; every other component remains in-process exactly as this ADR specifies)
 Date: 2026-08-04
 
 ## Context

@@ -29,7 +29,7 @@ before any application code exists.
 vision, constraints, architecture, and how to contribute without asking a
 human anything the docs should already answer.
 
-## Phase 1 — Core Engine Skeleton *(in progress — infrastructure done)*
+## Phase 1 — Core Engine Skeleton *(Runtime complete; atlas-app wiring pending)*
 
 Stand up the Rust workspace and prove the hexagonal boundaries from
 `module-boundaries.md` hold for a trivial end-to-end path.
@@ -41,17 +41,38 @@ Stand up the Rust workspace and prove the hexagonal boundaries from
       infrastructure command (`get_app_info`)
 - [x] Dependency-boundary CI check is live (`scripts/check-module-
       boundaries.py`, run in `rust-ci.yml`)
-- [ ] Domain types for `Document`, `Chunk`, `KnowledgeBase` (ADR-0005)
-- [ ] Resolve the inference process-isolation open item (ADR-0001
-      required action 1) — needed before the next item, since it
-      determines whether the adapter runs in-process or as a child
-      process
-- [ ] `InferenceEngine` port + llama.cpp FFI adapter; load a small GGUF
-      model and generate one token end-to-end
+- [x] Resolved the inference process-isolation open item — ADR-0010:
+      the llama.cpp FFI adapter runs in a supervised child process
+      (`atlas-inference-worker`), not in-process
+- [x] `InferenceEngine` port + llama.cpp FFI adapter (`atlas-ipc` +
+      `atlas-inference-worker`, `llama-cpp-2`) + `RuntimeManager` (the
+      real adapter) — the Atlas Runtime, with all named subsystems
+      (Model Registry, GGUF Inspector, Memory Manager, Thread Scheduler,
+      Language Registry, Offline Policy Engine, Benchmark Engine,
+      Metrics Collector, Error Recovery, Streaming Engine, Context
+      Manager). See `docs/architecture/runtime-architecture.md`.
+- [x] Loaded a real GGUF model (Qwen2.5-0.5B-Instruct Q4_K_M) and
+      generated a real, correct completion end-to-end through the full
+      domain → port → IPC → FFI → llama.cpp path — see
+      `docs/benchmarks/2026-08-04-qwen2.5-0.5b-validation.md`
+- [ ] Domain types for `Document`, `Chunk`, `KnowledgeBase` (ADR-0005) —
+      still pending; scoped to Phase 2 (Document Ingestion), not blocking
+- [ ] Wire `atlas-app` (Tauri composition root) to the Runtime — blocked
+      on this sandbox's missing Tauri Linux system libraries
+      (`pkg-config`, `libwebkit2gtk-4.1-dev`), unrelated to the Runtime
+      itself; see `docs/architecture/runtime-architecture.md` §7
+- [ ] Validate against the official Qwen 3 4B Instruct Q4_K_M reference
+      model on Africa Deep Tech Challenge reference hardware (Ubuntu
+      22.04) — the validation above used a smaller model of the same
+      family/quantization by deliberate choice; see the benchmark
+      report's "Not yet done" section
 
 **Exit criteria:** `cargo run` on a CLI harness loads a model and returns
 a completion, with the call path running entirely through domain → port →
-adapter, provably (a deliberately-broken boundary fails CI).
+adapter, provably (a deliberately-broken boundary fails CI). **Met** via
+`crates/atlas-engine/examples/validate_runtime.rs` — remaining Phase 1
+work (`atlas-app` wiring, `Document`/`Chunk` types) is additive, not
+required to close this exit criterion.
 
 ## Phase 2 — Document Ingestion
 

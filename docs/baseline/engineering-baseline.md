@@ -9,26 +9,50 @@ Last updated: 2026-08-04
 
 ## What exists today
 
-- **Code:** infrastructure only — no business logic, RAG, ingestion,
-  retrieval, or inference. The Rust workspace, Tauri desktop shell, and
-  React front end are scaffolded, compile, and run:
-  - `crates/atlas-domain` — pure domain types (currently: a typed `Id<T>`).
+- **Code:** the Atlas Runtime is real and validated end-to-end against a
+  live model. No document ingestion, RAG, retrieval, or enterprise
+  workflow logic exists yet — that remains explicitly out of scope until
+  Phase 2+.
+  - `crates/atlas-domain` — pure domain types: `Id<T>`, `ModelFamily`,
+    `Quantization`, `ModelDescriptor`, `LanguageCode`,
+    `LanguageDescriptor`, `RamTier`, `RuntimeStatus`, `InferenceParams`.
   - `crates/atlas-config` — local, offline configuration loading.
   - `crates/atlas-logging` — local-only structured logging (`tracing`).
-  - `crates/atlas-engine` — the five bounded contexts as documented
-    module stubs; no ports, adapters, or business logic yet.
+  - `crates/atlas-ipc` — the wire protocol between the main process and
+    the inference worker (ADR-0010), Unix domain sockets only.
+  - `crates/atlas-engine` — `inference` is the **Atlas Runtime**: Runtime
+    Manager, Model Registry, GGUF Inspector (pure-Rust binary parser),
+    Model Validation, Memory Manager (RAM-tier selection), Thread
+    Scheduler, Context Manager, Streaming Engine, Language Registry (24
+    languages), Offline Policy Engine, Benchmark Engine, Metrics
+    Collector, Error Recovery. See
+    `docs/architecture/runtime-architecture.md` for the full design. The
+    other four bounded contexts remain documented stubs.
+  - `crates/atlas-inference-worker` — the isolated llama.cpp FFI adapter
+    (ADR-0010), a separate OS process, using `llama-cpp-2`. The one crate
+    permitted `unsafe_code` — though it turned out to need zero literal
+    `unsafe` blocks of its own.
   - `crates/atlas-app` — the Tauri composition root; wires config and
-    logging, exposes one command (`get_app_info`).
+    logging, exposes one command (`get_app_info`). **Not yet** wired to
+    the Runtime — see "Known open items."
   - `ui/` — React + TypeScript + Vite front end calling `get_app_info`
     end to end.
-- **Architecture:** baselined. See `docs/architecture/overview.md`.
-- **Foundational decisions:** recorded as ADR-0001 through ADR-0009 in
+  - 103 tests passing across the workspace (`cargo test`, excluding
+    `atlas-app` which can't build in this sandbox — see below), including
+    real spawned-worker integration tests and a real-model validation
+    example (`crates/atlas-engine/examples/validate_runtime.rs`).
+- **Architecture:** baselined and extended. See
+  `docs/architecture/overview.md` and
+  `docs/architecture/runtime-architecture.md`.
+- **Foundational decisions:** recorded as ADR-0001 through ADR-0010 in
   `docs/adr/`, covering deployment topology, primary language, inference
   engine, storage, architecture style, crate/module packaging,
-  RAM/quantization strategy, desktop shell, and license.
+  RAM/quantization strategy, desktop shell, license, and inference
+  process isolation.
 - **Independent review:** a full architecture review exists at
-  `docs/execution/architecture-review-2026-08-04.md`, with two findings
-  still open — see "Known open items" below.
+  `docs/execution/architecture-review-2026-08-04.md`. Its process-
+  isolation finding is now resolved (ADR-0010); its CPU-ISA finding
+  remains open — see "Known open items" below.
 - **Governance:** `CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md`,
   `LICENSE` (Apache 2.0) are in place.
 - **Process scaffolding:** engineering standards, Definition of Done,
@@ -41,23 +65,30 @@ Last updated: 2026-08-04
 
 ## Known open items
 
-- **Inference process-isolation** (ADR-0001 required action 1, per the
-  architecture review): the llama.cpp FFI adapter should run in a
-  supervised child process, not in-process — not yet formalized as an
-  ADR amendment, and not yet relevant since no inference adapter exists.
+- **`atlas-app` not wired to the Runtime.** Blocked on this sandbox
+  missing Tauri's Linux build dependencies (`pkg-config`,
+  `libwebkit2gtk-4.1-dev`, et al.) — unrelated to the Runtime itself,
+  which builds, tests, and runs real inference independently of
+  `atlas-app`. See `docs/architecture/runtime-architecture.md` §7.
 - **CPU-ISA build/dispatch strategy** (ADR-0002 required action 2): how
   the binary targets AVX2 vs. AVX-512 across the competition's hardware
-  range is undecided. Blocks Phase 4 (Inference & RAM Tiering), not
-  today's infrastructure work.
+  range is undecided. Blocks any *comparative* throughput claim across
+  that range, not today's single-machine validation.
+- **Validation against the official Qwen 3 4B Instruct Q4_K_M reference
+  model** on Africa Deep Tech Challenge reference hardware (Ubuntu
+  22.04) has not yet been run — see
+  `docs/benchmarks/2026-08-04-qwen2.5-0.5b-validation.md`'s "Not yet
+  done" section.
 
 ## What's next
 
-Per `docs/roadmap/development-roadmap.md`, the immediate next phase is
-**Phase 1 — Core Engine Skeleton**: the workspace scaffolding described
-above is done; what remains is a real `InferenceEngine` port and a
-llama.cpp adapter proving a trivial end-to-end model-load-and-generate
-path through the hexagonal boundaries — which requires resolving the
-process-isolation open item above first.
+Per `docs/roadmap/development-roadmap.md`, Phase 1's Runtime work is
+complete; what remains before Phase 1 fully closes is wiring `atlas-app`
+to the Runtime (blocked on system libraries, not architecture) and
+modeling `Document`/`Chunk`/`KnowledgeBase` domain types ahead of Phase 2
+(Document Ingestion). See
+`docs/architecture/runtime-architecture.md` §7 for the full remaining
+Runtime-specific roadmap.
 
 ## Competition constraints (restated for quick reference)
 

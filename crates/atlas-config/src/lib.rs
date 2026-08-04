@@ -95,7 +95,7 @@ impl fmt::Display for LogLevel {
 /// Every field must have a sensible default — `AppConfig::default()` is
 /// the configuration a fresh, offline install runs with before the user
 /// has touched anything.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct AppConfig {
     /// Logging verbosity. Defaults to [`LogLevel::Info`].
@@ -107,12 +107,6 @@ pub struct AppConfig {
     /// this struct, since resolving it is itself fallible and this type
     /// needs to stay constructible via `Default`.
     pub data_dir_override: Option<PathBuf>,
-}
-
-impl Default for AppConfig {
-    fn default() -> Self {
-        Self { log_level: LogLevel::default(), data_dir_override: None }
-    }
 }
 
 impl AppConfig {
@@ -148,8 +142,10 @@ impl AppConfig {
             return Ok(Self::default());
         }
 
-        let contents = fs::read_to_string(path)
-            .map_err(|source| ConfigError::Io { path: path.to_path_buf(), source })?;
+        let contents = fs::read_to_string(path).map_err(|source| ConfigError::Io {
+            path: path.to_path_buf(),
+            source,
+        })?;
 
         toml::from_str(&contents).map_err(|source| ConfigError::Parse {
             path: path.to_path_buf(),
@@ -165,8 +161,8 @@ impl AppConfig {
     /// Returns [`ConfigError::NoConfigDir`] if the platform config
     /// directory cannot be resolved.
     pub fn default_config_path() -> Result<PathBuf, ConfigError> {
-        let project_dirs = ProjectDirs::from("org", "brix-atlas", "atlas")
-            .ok_or(ConfigError::NoConfigDir)?;
+        let project_dirs =
+            ProjectDirs::from("org", "brix-atlas", "atlas").ok_or(ConfigError::NoConfigDir)?;
         Ok(project_dirs.config_dir().join("config.toml"))
     }
 }

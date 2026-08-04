@@ -39,7 +39,19 @@ confidence-threshold = 0.8
 [bans]
 multiple-versions = "warn"
 wildcards = "deny"
-deny = []
+# Cloud AI inference SDKs — the Offline Policy Engine's structural
+# enforcement (docs/adr's "zero cloud inference" requirement). Keep in
+# sync with BANNED_DEPENDENCY_NAME_PATTERNS in
+# crates/atlas-engine/src/inference/offline_policy.rs — that module
+# re-checks the same list against Cargo.lock text directly (including in
+# its own tests) as an independent, non-cargo-deny-dependent check.
+deny = [
+    { name = "async-openai" },
+    { name = "openai-api" },
+    { name = "openai_api" },
+    { name = "anthropic-sdk" },
+    { name = "async-anthropic" },
+]
 
 [sources]
 unknown-registry = "deny"

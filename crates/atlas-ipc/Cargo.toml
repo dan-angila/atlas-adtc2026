@@ -1,0 +1,22 @@
+[package]
+name = "atlas-ipc"
+description = "Wire protocol between the main process and atlas-inference-worker, per ADR-0010. Pure Rust, no FFI, Unix domain sockets only."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+atlas-domain = { path = "../atlas-domain" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }

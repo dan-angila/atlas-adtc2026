@@ -5,7 +5,9 @@ concrete workspace/crate layout and the rules that keep the boundaries
 real once code exists. It is the enforcement mechanism behind
 [ADR-0005](../adr/0005-clean-hexagonal-architecture-ddd.md), with its
 packaging granularity as amended by
-[ADR-0009](../adr/0009-crate-packaging-module-boundaries.md).
+[ADR-0009](../adr/0009-crate-packaging-module-boundaries.md) and its
+inference-isolation topology as amended by
+[ADR-0010](../adr/0010-inference-worker-process-isolation.md).
 
 ## Workspace layout
 
@@ -21,11 +23,22 @@ atlas-adtc2026/
 │   │   └── src/
 │   │       ├── ingestion.rs      #   Document Ingestion
 │   │       ├── retrieval.rs      #   Knowledge Retrieval
-│   │       ├── inference.rs      #   Inference & Generation
+│   │       ├── inference/        #   Inference & Generation — the Atlas
+│   │       │   └── ...           #   Runtime; grown into a module tree,
+│   │       │                     #   see runtime-architecture.md
 │   │       ├── conversation.rs   #   Conversation & Session
 │   │       └── reporting.rs      #   Reporting & Authoring
 │   │       (each module holds its own ports/application/adapters split
 │   │        internally as it grows real content — see ADR-0009)
+│   │
+│   ├── atlas-ipc/               # Wire protocol shared between atlas-engine's
+│   │                             # inference client and atlas-inference-worker.
+│   │                             # Pure Rust, no FFI, no I/O beyond (de)serialization.
+│   │
+│   ├── atlas-inference-worker/  # Separate BINARY crate: the llama.cpp FFI
+│   │                             # adapter, isolated in its own OS process
+│   │                             # per ADR-0010. The one crate in the
+│   │                             # workspace permitted `unsafe_code`.
 │   │
 │   ├── atlas-config/            # Configuration loading — shared infrastructure,
 │   │                             # not a bounded context. No cloud, local file only.
@@ -34,7 +47,8 @@ atlas-adtc2026/
 │   │                             # infrastructure, not a bounded context.
 │   │
 │   └── atlas-app/               # Composition root: wires adapters to ports,
-│                                 # exposes Tauri commands to the front end.
+│                                 # exposes Tauri commands to the front end,
+│                                 # supervises the inference-worker child process.
 │
 └── ui/                          # Tauri front end (React + TypeScript + Vite)
 ```
@@ -47,7 +61,8 @@ are exempt from the "no context depends on another context" rule below
 because they aren't a context; they're closer to `atlas-domain` in kind
 (shared foundation), but unlike `atlas-domain` they *do* perform I/O
 (reading a config file, writing log output), which is exactly why they
-are not folded into `atlas-domain` itself.
+are not folded into `atlas-domain` itself. `atlas-ipc` is the same kind
+of exception, scoped narrowly to the wire protocol ADR-0010 introduces.
 
 ## The rules
 
@@ -91,6 +106,15 @@ are not folded into `atlas-domain` itself.
    named, concrete trigger** — see ADR-0009's Revisit Trigger. Splitting
    "just in case" is the premature abstraction ADR-0009 was written to
    avoid; don't reintroduce it piecemeal.
+
+7. **`unsafe_code` is forbidden workspace-wide except in
+   `atlas-inference-worker`.** Every other crate sets
+   `unsafe_code = "forbid"` via the workspace lint table (`Cargo.toml`).
+   `atlas-inference-worker` is the one, explicitly reviewed exception —
+   its FFI boundary to llama.cpp is exactly the "explicitly reviewed FFI
+   boundary module" `docs/engineering-standards.md` describes, and
+   ADR-0010 exists specifically to contain the blast radius of that
+   exception to its own OS process.
 
 ## Why write this down before any code exists
 

@@ -1,0 +1,231 @@
+use std::path::PathBuf;
+
+use atlas_domain::InferenceParams;
+use serde::{Deserialize, Serialize};
+
+/// The wire protocol version this build speaks. Bumped whenever
+/// [`WorkerRequest`] or [`WorkerResponse`] change in a way that isn't
+/// backward compatible. `atlas-app` and `atlas-inference-worker` are
+/// always built and shipped together from the same workspace today, so
+/// this is currently a diagnostic aid (surfaced in [`HealthInfo`] and
+/// logged on mismatch) rather than an enforced compatibility gate — see
+/// `docs/adr/0010-inference-worker-process-isolation.md`'s Revisit
+/// Trigger for when that should change.
+pub const PROTOCOL_VERSION: u32 = 1;
+
+/// A request sent from the main process to the inference worker.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum WorkerRequest {
+    /// Load a GGUF model from disk, replacing any currently loaded
+    /// model.
+    LoadModel(LoadModelRequest),
+    /// Generate a completion for a prompt against the currently loaded
+    /// model. Responses stream back as zero or more
+    /// [`WorkerResponse::Token`] followed by exactly one
+    /// [`WorkerResponse::GenerationComplete`] or
+    /// [`WorkerResponse::Error`].
+    Generate(GenerateRequest),
+    /// Unload the current model, freeing its memory without stopping
+    /// the worker process itself.
+    Unload,
+    /// Liveness/readiness probe.
+    HealthCheck,
+    /// Ask the worker to exit cleanly.
+    Shutdown,
+}
+
+/// Parameters for [`WorkerRequest::LoadModel`].
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LoadModelRequest {
+    /// Absolute path to the GGUF file. The worker does not resolve
+    /// relative paths — the caller (Runtime Manager) is responsible for
+    /// resolving and validating the path before sending it, per the
+    /// Model Validation component.
+    pub path: PathBuf,
+    /// Context window size to allocate, in tokens.
+    pub context_length: u32,
+    /// CPU threads to use for generation, as decided by the Thread
+    /// Scheduler.
+    pub thread_count: i32,
+    /// GPU layers to offload. Always `0` in this project — see
+    /// `docs/adr/0003-llama-cpp-gguf-inference-engine.md` (CPU-only) —
+    /// but left as an explicit field rather than hardcoded so the worker
+    /// itself doesn't need a code change if that constraint is ever
+    /// revisited at the ADR level.
+    pub gpu_layers: u32,
+}
+
+/// Parameters for [`WorkerRequest::Generate`].
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GenerateRequest {
+    /// The already-formatted prompt to generate from. Chat templating
+    /// happens above this boundary (Conversation & Session context) —
+    /// the worker deals in raw prompt strings only.
+    pub prompt: String,
+    /// Generation parameters.
+    pub params: InferenceParams,
+}
+
+/// A response sent from the inference worker to the main process.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum WorkerResponse {
+    /// The requested model finished loading successfully.
+    ModelLoaded(ModelLoadedInfo),
+    /// One generated token's text, streamed as it's produced.
+    Token(TokenChunk),
+    /// Generation finished (end-of-generation token reached, or
+    /// `max_tokens` hit).
+    GenerationComplete(GenerationStats),
+    /// Response to [`WorkerRequest::HealthCheck`].
+    Health(HealthInfo),
+    /// Acknowledges [`WorkerRequest::Unload`] or
+    /// [`WorkerRequest::Shutdown`].
+    Ack,
+    /// The request failed.
+    Error(WorkerError),
+}
+
+/// Model metadata learned at load time, reported back so the Runtime
+/// Manager doesn't need to re-derive it.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ModelLoadedInfo {
+    /// The context window actually allocated (may be clamped to the
+    /// model's trained maximum).
+    pub context_length: u32,
+    /// Vocabulary size.
+    pub vocab_size: i32,
+    /// Embedding dimension.
+    pub embedding_length: i32,
+    /// Transformer layer count.
+    pub layer_count: u32,
+}
+
+/// One streamed token during generation.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TokenChunk {
+    /// The token's decoded text piece. May be a partial UTF-8 sequence
+    /// boundary-wise for multi-byte characters split across tokens; the
+    /// worker's stateful decoder handles reassembly before this is sent.
+    pub text: String,
+    /// The raw token id, for callers that need it (e.g. stop-sequence
+    /// matching against special tokens).
+    pub token_id: i32,
+}
+
+/// Final statistics for a completed generation — the raw material for
+/// the Benchmark Engine and Metrics Collector.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GenerationStats {
+    /// Tokens in the input prompt.
+    pub prompt_tokens: u32,
+    /// Tokens actually generated (may be less than `max_tokens` if an
+    /// end-of-generation token was reached first).
+    pub generated_tokens: u32,
+    /// Wall-clock time spent evaluating the prompt, in milliseconds.
+    pub prompt_eval_duration_ms: u64,
+    /// Wall-clock time spent generating, in milliseconds.
+    pub generation_duration_ms: u64,
+    /// `generated_tokens / (generation_duration_ms / 1000)`, precomputed
+    /// so every caller doesn't reimplement the same division.
+    pub tokens_per_second: f64,
+}
+
+/// Response to [`WorkerRequest::HealthCheck`].
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HealthInfo {
+    /// Whether a model is currently loaded.
+    pub model_loaded: bool,
+    /// How long this worker process has been running.
+    pub uptime_ms: u64,
+    /// The protocol version this worker build speaks — compared against
+    /// [`PROTOCOL_VERSION`] by the caller.
+    pub protocol_version: u32,
+}
+
+/// A typed error from the worker, distinct from a transport-level
+/// [`crate::IpcError`] — this is the worker successfully responding
+/// with "the request itself failed," not a broken connection.
+#[derive(Debug, Clone, Serialize, Deserialize, thiserror::Error)]
+#[error("{kind}: {message}")]
+pub struct WorkerError {
+    /// The category of failure.
+    pub kind: WorkerErrorKind,
+    /// Human-readable detail. Per `SECURITY.md`, this must never include
+    /// raw document/prompt content — only structural information (file
+    /// paths, token counts, error codes).
+    pub message: String,
+}
+
+/// Categories of worker-side failure.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum WorkerErrorKind {
+    /// [`WorkerRequest::LoadModel`] failed — bad path, corrupt file, or
+    /// llama.cpp rejected it.
+    ModelLoadFailed,
+    /// A generation or health request arrived with no model loaded.
+    NotLoaded,
+    /// Generation started but failed partway through.
+    GenerationFailed,
+    /// The request itself was malformed (should not happen if the
+    /// client is a well-behaved Runtime Manager — a defensive check,
+    /// not an expected path).
+    InvalidRequest,
+    /// An internal worker error not covered by the above.
+    Internal,
+}
+
+impl std::fmt::Display for WorkerErrorKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            Self::ModelLoadFailed => "model load failed",
+            Self::NotLoaded => "no model loaded",
+            Self::GenerationFailed => "generation failed",
+            Self::InvalidRequest => "invalid request",
+            Self::Internal => "internal worker error",
+        };
+        f.write_str(s)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn worker_request_round_trips_through_json() {
+        let request = WorkerRequest::LoadModel(LoadModelRequest {
+            path: PathBuf::from("/models/test.gguf"),
+            context_length: 4096,
+            thread_count: 4,
+            gpu_layers: 0,
+        });
+        let json = serde_json::to_string(&request).unwrap();
+        let decoded: WorkerRequest = serde_json::from_str(&json).unwrap();
+        match decoded {
+            WorkerRequest::LoadModel(req) => {
+                assert_eq!(req.context_length, 4096);
+                assert_eq!(req.thread_count, 4);
+            }
+            other => panic!("expected LoadModel, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn worker_error_display_includes_kind_and_message() {
+        let error = WorkerError {
+            kind: WorkerErrorKind::NotLoaded,
+            message: "no model".to_string(),
+        };
+        assert_eq!(error.to_string(), "no model loaded: no model");
+    }
+
+    #[test]
+    fn generate_request_carries_inference_params() {
+        let request = WorkerRequest::Generate(GenerateRequest {
+            prompt: "hello".to_string(),
+            params: InferenceParams::default(),
+        });
+        let json = serde_json::to_string(&request).unwrap();
+        assert!(json.contains("hello"));
+    }
+}
