@@ -84,7 +84,7 @@ individual decisions in [`docs/adr/`](docs/adr/):
 
 ## Repository structure
 
-```
+```text
 atlas-adtc2026/
 ├── README.md                  # you are here
 ├── CONTRIBUTING.md             # how to contribute

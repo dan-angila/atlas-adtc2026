@@ -29,7 +29,7 @@ implies.
 
 ## Layered view
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────┐
 │  Desktop Shell (Tauri)                                          │
 │  Web front end (chat UI, document manager, report authoring)    │

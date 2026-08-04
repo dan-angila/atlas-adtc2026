@@ -36,8 +36,7 @@ sense of "looks good to me."
 - [ ] Commit messages and PR description explain *why*, per
       `engineering-standards.md`.
 
-## Additionally, for PRs touching retrieval, ranking, prompt construction,
-## or model/quantization selection
+## Additionally, for PRs touching retrieval, ranking, prompt construction, or model/quantization selection
 
 - [ ] A `/benchmarks` or `/evaluation` entry accompanies the PR, showing
       the measured before/after effect on the reference hardware class.

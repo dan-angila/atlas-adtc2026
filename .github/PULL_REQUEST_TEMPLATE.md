@@ -23,13 +23,16 @@ each item.
 
 **If this PR touches retrieval, ranking, prompt construction, or model/
 quantization selection:**
+
 - [ ] A `/benchmarks` or `/evaluation` entry is included showing the
       measured effect
 
 **If this PR touches a document parser:**
+
 - [ ] Malformed/edge-case input tests included
 
 **If this PR introduces or changes a public port (trait):**
+
 - [ ] A second, credible adapter is named (in this PR or the roadmap)
 
 ## Justification for any skipped items above

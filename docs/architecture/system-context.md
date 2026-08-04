@@ -5,7 +5,7 @@ touches, and — deliberately — what it never touches.
 
 ## Context diagram
 
-```
+```text
                           ┌───────────────────────────┐
                           │        Enterprise User      │
                           │  (knowledge worker, analyst, │

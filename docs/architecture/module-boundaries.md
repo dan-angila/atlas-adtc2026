@@ -9,7 +9,7 @@ packaging granularity as amended by
 
 ## Workspace layout
 
-```
+```text
 atlas-adtc2026/
 ├── crates/
 │   ├── atlas-domain/            # Shared domain vocabulary — no I/O, no deps

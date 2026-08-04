@@ -17,3 +17,12 @@ MD024:
 
 # Allow bare URLs in reference-style docs.
 MD034: false
+
+# GitHub issue/PR templates conventionally start with a level-2 heading
+# (e.g. "## Summary") since the PR/issue title itself serves as the H1 —
+# not a violation worth flagging.
+MD041: false
+
+# Table pipe-spacing consistency — too opinionated to chase across every
+# table in the repo for no readability gain.
+MD060: false

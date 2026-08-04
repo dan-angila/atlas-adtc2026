@@ -95,10 +95,12 @@ for current state.
 - Node.js 22+ and npm, for the `ui/` front end.
 - Linux (Ubuntu 22.04, the reference target) build dependencies for
   Tauri:
-  ```
+
+  ```bash
   sudo apt install pkg-config libgtk-3-dev libwebkit2gtk-4.1-dev \
     libayatana-appindicator3-dev librsvg2-dev libsoup-3.0-dev
   ```
+
 - Optional: `cargo install cargo-deny --locked` for `scripts/check-deps.sh`.
 
 **One-time setup:**

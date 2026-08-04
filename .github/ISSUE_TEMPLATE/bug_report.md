@@ -30,7 +30,7 @@ A clear, concise description of what's wrong.
 
 ## Logs / output
 
-```
+```text
 paste relevant logs here — redact any document content you don't want
 shared publicly, since BRIX Atlas may process sensitive enterprise data
 ```
