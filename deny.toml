@@ -1,0 +1,47 @@
+# cargo-deny configuration: dependency licensing, duplicate-version, and
+# advisory checks. Run via `cargo deny check` (see scripts/check-deps.sh).
+#
+# This is the crate-level half of the enforcement described in
+# docs/architecture/module-boundaries.md rule 5. It exists specifically to
+# make ADR-0008's Apache-2.0 license compatibility requirement, and
+# docs/engineering-standards.md's "no dependency without justification"
+# rule, machine-checked instead of review-only.
+
+[graph]
+targets = []
+all-features = false
+no-default-features = false
+
+[advisories]
+db-path = "~/.cargo/advisory-db"
+db-urls = ["https://github.com/rustsec/advisory-db"]
+yanked = "deny"
+ignore = []
+
+[licenses]
+version = 2
+# Permissive licenses compatible with Apache 2.0 distribution (ADR-0008).
+# Anything not on this list fails CI and requires an explicit, reviewed
+# addition here — that review is the point.
+allow = [
+    "Apache-2.0",
+    "MIT",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Unicode-3.0",
+    "Zlib",
+    "MPL-2.0",
+    "CC0-1.0",
+]
+confidence-threshold = 0.8
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+deny = []
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]

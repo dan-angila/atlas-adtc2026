@@ -1,0 +1,9 @@
+# Pins the exact Rust toolchain for reproducible builds across contributors
+# and CI. Bump deliberately (a dependency needing a newer feature, a
+# security fix in rustc itself) — not casually. Bumping this file is a
+# `type:chore` change per docs/execution/github-labels.md, not a drive-by
+# edit inside an unrelated PR.
+
+[toolchain]
+channel = "1.97.1"
+components = ["clippy", "rustfmt"]

@@ -1,0 +1,9 @@
+# Companion to the workspace-level clippy::unwrap_used / expect_used /
+# panic lints in Cargo.toml. Those lints exist to catch panics reachable
+# from user input, file I/O, or model output (docs/engineering-standards.md)
+# — they are not meant to ban `.unwrap()` inside `#[test]` functions,
+# which is normal, idiomatic Rust testing practice.
+
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true
+allow-panic-in-tests = true

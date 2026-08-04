@@ -1,0 +1,20 @@
+[package]
+name = "atlas-domain"
+description = "Pure domain vocabulary shared across BRIX Atlas bounded contexts. No I/O, ever — see docs/architecture/module-boundaries.md rule 1."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+serde = { workspace = true }
+uuid = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }

@@ -1,6 +1,6 @@
 # ADR-0005: Clean/Hexagonal architecture with DDD-informed bounded contexts
 
-Status: Accepted
+Status: Accepted (packaging refined by [ADR-0009](0009-crate-packaging-module-boundaries.md) — the crate-per-bounded-context split described below is superseded; the hexagonal/DDD/bounded-context reasoning itself stands)
 Date: 2026-08-04
 
 ## Context

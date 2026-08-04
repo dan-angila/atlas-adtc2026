@@ -1,0 +1,57 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/atlas-domain",
+    "crates/atlas-config",
+    "crates/atlas-logging",
+    "crates/atlas-engine",
+    "crates/atlas-app",
+]
+
+# atlas-engine and atlas-domain are workspace members (they compile and
+# are tested by `cargo test --workspace`) but are NOT YET depended on by
+# atlas-app. Wiring them into the composition root before real ports and
+# adapters exist would mean either an unused dependency edge or
+# fabricated placeholder usage — both are ruled out for this stage of the
+# project. See docs/execution/architecture-review-2026-08-04.md and
+# docs/roadmap/development-roadmap.md, Phase 1.
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.97"
+license = "Apache-2.0"
+authors = ["BRIX Atlas Contributors"]
+repository = "https://github.com/OWNER/atlas-adtc2026"
+publish = false
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+toml = "0.8"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+tracing-appender = "0.2"
+uuid = { version = "1", features = ["v4", "serde"] }
+directories = "5"
+tempfile = "3"
+
+# Workspace-wide lint policy. Every member crate opts in via `[lints]
+# workspace = true` — see docs/engineering-standards.md.
+[workspace.lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+unwrap_used = "warn"
+expect_used = "warn"
+panic = "warn"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
+panic = "unwind"

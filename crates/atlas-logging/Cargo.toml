@@ -1,0 +1,22 @@
+[package]
+name = "atlas-logging"
+description = "Local-only structured logging setup for BRIX Atlas, built on tracing. No remote log shipping, no telemetry — see SECURITY.md."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+tracing-appender = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
