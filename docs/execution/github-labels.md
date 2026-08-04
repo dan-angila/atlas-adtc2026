@@ -32,16 +32,20 @@ explanation of *why* the taxonomy is shaped this way.
 
 ## Area (mirrors bounded contexts)
 
+Each area gets a visually distinct color — a shared color across all
+areas would defeat the point of having them (a finding from the initial
+architecture review, corrected here).
+
 | Label | Color | Use |
 |---|---|---|
 | `area:ingestion` | `#fbca04` | Document Ingestion context |
-| `area:retrieval` | `#fbca04` | Knowledge Retrieval context |
-| `area:inference` | `#fbca04` | Inference & Generation context |
-| `area:conversation` | `#fbca04` | Conversation & Session context |
-| `area:reporting` | `#fbca04` | Reporting & Authoring context |
-| `area:ui` | `#fbca04` | Desktop shell / Tauri front end |
-| `area:architecture` | `#fbca04` | Cross-cutting architecture, module boundaries |
-| `area:ci-cd` | `#fbca04` | Build, CI, release tooling |
+| `area:retrieval` | `#1d76db` | Knowledge Retrieval context |
+| `area:inference` | `#5319e7` | Inference & Generation context |
+| `area:conversation` | `#0e8a16` | Conversation & Session context |
+| `area:reporting` | `#e99695` | Reporting & Authoring context |
+| `area:ui` | `#bfd4f2` | Desktop shell / Tauri front end |
+| `area:architecture` | `#d4c5f9` | Cross-cutting architecture, module boundaries |
+| `area:ci-cd` | `#c2e0c6` | Build, CI, release tooling |
 
 ## Priority
 
