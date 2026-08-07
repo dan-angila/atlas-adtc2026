@@ -17,8 +17,11 @@
 //!   [`TextDirection`], [`LanguageDescriptor`]).
 //! - [`runtime`] — Runtime lifecycle and generation-request vocabulary
 //!   ([`RamTier`], [`RuntimeStatus`], [`InferenceParams`]).
+//! - [`document`] — Document Ingestion vocabulary ([`DocumentId`],
+//!   [`ChunkId`], [`DocumentFormat`], [`DocumentRecord`],
+//!   [`ChunkRecord`]).
 //!
-//! Document/Chunk/KnowledgeBase/Conversation types (the other bounded
+//! `KnowledgeBase` and Conversation & Session types (the other bounded
 //! contexts) are not modeled yet — that is business-logic design work
 //! scoped to later roadmap phases, not to the Runtime bootstrap this
 //! crate currently supports.
@@ -27,6 +30,9 @@
 #![warn(missing_docs)]
 
 mod id;
+
+/// Document Ingestion vocabulary.
+pub mod document;
 
 /// Language Registry vocabulary.
 pub mod language;
@@ -37,6 +43,7 @@ pub mod model;
 /// Runtime lifecycle and generation-request vocabulary.
 pub mod runtime;
 
+pub use document::{ChunkId, ChunkRecord, DocumentFormat, DocumentId, DocumentRecord, HeadingPath};
 pub use id::Id;
 pub use language::{LanguageCode, LanguageDescriptor, TextDirection};
 pub use model::{Model, ModelDescriptor, ModelFamily, ModelId, Quantization};
