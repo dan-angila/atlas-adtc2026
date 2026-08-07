@@ -9,8 +9,21 @@ authors.workspace = true
 repository.workspace = true
 publish.workspace = true
 
-[lints]
-workspace = true
+[lints.rust]
+# Everything here matches [workspace.lints.rust] except unsafe_code,
+# which is "deny" (not "forbid") specifically so the one function this
+# ADR permits can carry a local #[allow(unsafe_code)]. "forbid" cannot be
+# overridden by an in-code #[allow] even for one function — that's the
+# whole reason this crate can't just inherit `[lints] workspace = true`
+# anymore. See docs/adr/0015-sqlite-vec-unsafe-ffi-scope.md.
+unsafe_code = "deny"
+missing_docs = "warn"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+unwrap_used = "warn"
+expect_used = "warn"
+panic = "warn"
 
 [dependencies]
 atlas-domain = { path = "../atlas-domain" }
@@ -23,6 +36,10 @@ csv = { workspace = true }
 zip = { version = "2", default-features = false, features = ["deflate"] }
 quick-xml = "0.41"
 pdf-extract = { workspace = true }
+serde_json = { workspace = true }
+uuid = { workspace = true }
+rusqlite = { version = "0.37", features = ["bundled"] }
+sqlite-vec = "0.1"
 
 [dev-dependencies]
 tempfile = { workspace = true }
