@@ -65,14 +65,29 @@ nothing yet about behavior at realistic knowledge-base scale.
 **Embedding is the dominant cost by a wide margin**: ~42 ms/chunk means
 ingesting even a modest 1,000-chunk document set would take roughly 42
 seconds of embedding time alone, all of it CPU-bound single-sequence
-work. [`Worker::embed`](../../crates/atlas-inference-worker/src/worker.rs)
-currently clears the KV cache and re-decodes from scratch for every text
-in a batch rather than exploiting multiple simultaneous sequences — a
-deliberate simplicity choice documented in that function's own doc
-comment, not yet revisited because there was no throughput number to
-motivate it until now. This report is that number: embedding throughput,
-not storage or query latency, is the real lever for ingest-time
-performance in this architecture.
+work. Embedding throughput, not storage or query latency, is the real
+lever for ingest-time performance in this architecture.
+
+**Update, same day:** the obvious fix — batch multiple texts into one
+`decode()` call, each on its own sequence id (`n_seq_max > 1`), to
+amortize per-call fixed overhead across a group — was implemented and
+then **reverted after failing a real correctness check**. Embedding the
+same text alone versus batched alongside 20 other sequences produced
+different vectors (max per-component difference ≈0.077 — far beyond
+floating-point noise), meaning sequences were not properly isolated from
+each other's attention for this model/context configuration
+(`nomic-bert`, non-causal/bidirectional pooling) with this
+`llama-cpp-2`/llama.cpp version. Shipping a faster embedder that silently
+produces batch-dependent, inconsistent vectors would have corrupted
+retrieval quality far worse than the latency it would have saved, so it
+was reverted rather than shipped on the strength of a plausible-looking
+diff. The correctness check that caught this
+(`crates/atlas-engine/examples/validate_embeddings.rs`'s sequence-
+isolation test) stays in place as a permanent regression guard. See
+[`Worker::embed`](../../crates/atlas-inference-worker/src/worker.rs)'s
+doc comment for the full investigation trail — this is a documented
+negative result, not an open TODO, and a future attempt needs a real
+explanation of the leakage, not another blind retry.
 
 ## Not yet done
 
@@ -89,12 +104,16 @@ performance in this architecture.
   knowledge base would reach. `sqlite-vec`'s brute-force KNN degrades
   linearly with corpus size (no ANN index) — worth a follow-up
   measurement once a real corpus exists.
-- **Embedding throughput optimization.** The per-text KV-cache-clear
-  design is simple and correct but leaves real throughput on the table
-  (see Interpretation) — multi-sequence batching within one context is
-  the natural next optimization, now that this report gives it a
-  concrete number to improve against, per this project's "measure
-  before optimizing" standard.
+- **Embedding throughput optimization.** Multi-sequence batching was
+  tried and rejected on correctness grounds (see Interpretation's
+  "Update" above) — the per-text design remains the correct one for now.
+  Real remaining options: investigate *why* llama.cpp's batched pooling
+  produced different results here (an upstream question, not something
+  to guess at further from this codebase); or pad every text in a group
+  to equal length before batching, in case the leakage is specifically a
+  variable-length-padding issue rather than a fundamental sequence-
+  isolation gap — untested, and would need the same correctness check to
+  pass before shipping.
 - **Full RAM-tier interaction.** This report measures the embedding
   model alone, not the combined footprint of the embedding model, the
   generation model, and an actively-growing SQLite database resident

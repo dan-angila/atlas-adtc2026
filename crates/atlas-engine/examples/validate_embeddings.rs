@@ -110,5 +110,52 @@ fn main() {
          (got similar={similar:.4}, dissimilar={dissimilar:.4})"
     );
 
+    println!("\n== Sequence-isolation regression guard ==");
+    // Worker::embed processes one text per decode() call, deliberately —
+    // a multi-sequence-batching optimization was tried and reverted
+    // after this exact check caught it producing different embeddings
+    // for the same text depending on what else shared its batch (see
+    // Worker::embed's doc comment for the full story). This check stays
+    // as a permanent regression guard: embed the same text alone, and
+    // again inside a much larger batch, and confirm the vector doesn't
+    // change — if a future change reintroduces batching without fixing
+    // whatever caused the leakage, this will catch it again.
+    let probe_text = "Amoxicillin dosing depends on the severity of the infection.".to_string();
+    let alone = manager
+        .embed(EmbedSpec {
+            texts: vec![probe_text.clone()],
+            thread_count: threads,
+        })
+        .expect("embedding the probe text alone failed");
+
+    let mut crowded_texts: Vec<String> = (0..20)
+        .map(|i| format!("Unrelated filler sentence number {i} about the weather."))
+        .collect();
+    crowded_texts.push(probe_text.clone());
+    let crowded = manager
+        .embed(EmbedSpec {
+            texts: crowded_texts,
+            thread_count: threads,
+        })
+        .expect("embedding the probe text in a crowded batch failed");
+
+    let alone_vector = &alone.vectors[0];
+    let crowded_vector = crowded
+        .vectors
+        .last()
+        .expect("crowded batch must be non-empty");
+    let max_abs_diff = alone_vector
+        .iter()
+        .zip(crowded_vector.iter())
+        .map(|(a, b)| (a - b).abs())
+        .fold(0.0f32, f32::max);
+    println!("max |alone - crowded| component difference = {max_abs_diff:.8}");
+    assert!(
+        max_abs_diff < 1e-4,
+        "the same text must embed identically whether alone or batched with 20 other \
+         sequences — a difference this large ({max_abs_diff}) means sequences are leaking \
+         into each other's attention"
+    );
+
     println!("\n== PASS: embedding path validated end to end ==");
 }

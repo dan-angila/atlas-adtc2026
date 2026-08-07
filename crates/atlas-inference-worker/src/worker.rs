@@ -250,6 +250,33 @@ impl Worker {
     /// tokenization/context/decode failures are the same class of
     /// failure either way) if tokenization, context creation, or
     /// decoding fails partway through.
+    ///
+    /// # A rejected optimization, documented so it isn't re-attempted blind
+    ///
+    /// This method processes one text per `decode()` call, which real
+    /// measurement (`docs/benchmarks/2026-08-07-retrieval-latency.md`)
+    /// found costs ~42 ms/chunk — the dominant ingest-time cost. The
+    /// obvious fix is batching multiple texts into one `decode()` call,
+    /// each on its own sequence id via `n_seq_max` > 1. **This was tried
+    /// and reverted**: verified via a real correctness check
+    /// (`crates/atlas-engine/examples/validate_embeddings.rs`'s
+    /// sequence-isolation test) that embedding the same text alone versus
+    /// batched alongside 20 other sequences produced *different* vectors
+    /// — a max per-component difference of ~0.077, far beyond
+    /// floating-point noise. That means sequences are not correctly
+    /// isolated from each other's attention in this configuration
+    /// (`nomic-bert`, non-causal/bidirectional pooling, this
+    /// `llama-cpp-2`/llama.cpp version) when batched this way — likely
+    /// related to how variable-length sequences get padded within a
+    /// shared ubatch (llama.cpp's own log during this experiment showed
+    /// "making n_tokens a multiple of n_seqs," i.e. padding logic, for
+    /// exactly this batch shape). Shipping a "faster" embedder that
+    /// silently produces batch-dependent, inconsistent vectors would
+    /// corrupt retrieval quality in a way far worse than the latency this
+    /// would have saved, so this was reverted rather than shipped despite
+    /// looking correct. Revisit only with a real reproduction of why
+    /// llama.cpp's batching produces different results here, not another
+    /// blind attempt.
     pub fn embed(
         &self,
         request: &EmbedRequest,
