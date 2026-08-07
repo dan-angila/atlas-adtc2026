@@ -20,6 +20,8 @@ sha2 = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 csv = { workspace = true }
+zip = { version = "2", default-features = false, features = ["deflate"] }
+quick-xml = "0.36"
 
 [dev-dependencies]
 tempfile = { workspace = true }

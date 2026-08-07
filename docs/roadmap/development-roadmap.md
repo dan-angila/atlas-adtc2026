@@ -100,7 +100,18 @@ required to close this exit criterion.
       crate (RFC 4180 quoting) rather than hand-rolled delimiter
       splitting. Each row becomes its own chunk per this phase's exit
       criterion, headers attached per cell.
-- [ ] `DocumentParser` adapters: DOCX, PDF — not started.
+- [x] `DocumentParser` DOCX adapter — real, tested
+      (`crates/atlas-engine/src/ingestion/docx.rs`), reading
+      `word/document.xml` directly via `zip` + `quick-xml` (XML-based
+      extraction per `docs/design/rag-pipeline.md` §2) rather than a
+      full docx library. Paragraph style IDs (`HeadingN`/`Title`) become
+      the heading path, same model as the Markdown adapter; table-cell
+      paragraphs are walked for text but table structure itself is not
+      preserved (named risk, not solved here).
+- [ ] `DocumentParser` PDF adapter — not started. Highest-priority
+      remaining format for the healthcare vertical
+      ([ADR-0014](../adr/0014-healthcare-vertical-pivot.md)): most
+      WHO/MoH clinical guidelines ship as PDF.
 - [ ] Chunking strategy defined and benchmarked (chunk size/overlap is a
       retrieval-quality lever, not an arbitrary constant — document the
       choice in `/research`). **Not done**: a chunker exists

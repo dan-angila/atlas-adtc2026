@@ -67,8 +67,11 @@ capability.
 Rust workspace, Tauri desktop shell, React front end, and the full
 inference Runtime (model loading, real llama.cpp generation, GGUF
 inspection, RAM-tier detection, language registry, benchmarking) compile,
-run, and are backed by 103 passing tests — with **no document ingestion,
-RAG, retrieval, or enterprise-workflow implementation yet**, by design.
+run, and are backed by 142 passing tests (excluding `atlas-app`, which
+needs a full desktop-build environment) plus a real thin-vertical-slice
+Document Ingestion pipeline (Markdown, CSV, DOCX) — with **no PDF
+parsing, retrieval, or enterprise-workflow implementation yet**, by
+design.
 See [`docs/baseline/engineering-baseline.md`](docs/baseline/engineering-baseline.md)
 for a five-minute orientation, [`docs/architecture/runtime-architecture.md`](docs/architecture/runtime-architecture.md)
 for the Runtime's design, and
@@ -149,8 +152,9 @@ atlas-adtc2026/
 The Atlas Runtime (`atlas-engine`'s `inference` module) is real and
 validated against a live model — see
 [`docs/architecture/runtime-architecture.md`](docs/architecture/runtime-architecture.md).
-The other four bounded contexts (ingestion, retrieval, conversation,
-reporting) remain documented stubs, and `atlas-app` exposes exactly one
+Document Ingestion has a real, thin vertical slice (Markdown, CSV, DOCX
+parsing + a placeholder-tuned chunker); PDF, retrieval, conversation, and
+reporting remain documented stubs, and `atlas-app` exposes exactly one
 infrastructure command (`get_app_info`) — it is not yet wired to the
 Runtime. See
 [`docs/roadmap/development-roadmap.md`](docs/roadmap/development-roadmap.md)
