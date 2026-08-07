@@ -1,6 +1,13 @@
 # ADR-0011: RAM-tiering constraints — GQA, KV-cache quantization, and a concrete context length
 
-Status: Accepted
+Status: Accepted. This ADR's own Revisit Trigger has fired once:
+[`docs/benchmarks/2026-08-07-qwen3-4b-validation.md`](../benchmarks/2026-08-07-qwen3-4b-validation.md)
+measured the official Qwen 3 4B reference model's real working set at
+≈4.81 GiB — within the 5–6GB budget this ADR references, but leaving
+thin margin once a previously-unbudgeted ~1.68 GiB weight-repack buffer
+and the two-process overhead (ADR-0010) are counted. The Standard tier
+remains **provisional**, now with a real measurement attached instead of
+an open question — see that report's Interpretation section.
 Date: 2026-08-07
 Amends: [ADR-0006](0006-quantization-model-tiering-ram-envelope.md) (adds
 missing constraints and marks the Standard tier provisional — the tiering

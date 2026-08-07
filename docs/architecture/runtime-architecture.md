@@ -315,16 +315,23 @@ Runtime-specific remaining work, in priority order:
    packaging work, per that ADR's Consequences section. Blocks making
    any *comparative* throughput claim across the hardware range until
    then; doesn't block today's single-machine validation.
-3. **Validate against the official Qwen 3 4B Instruct Q4_K_M reference
-   model on Africa Deep Tech Challenge reference hardware** — see the
-   benchmark report's explicit "not yet done" section. This sandbox
-   validated the same architecture family and quantization scheme at a
-   smaller parameter count (0.5B) by deliberate, documented choice (a
-   ~2.5GB download and heavier RAM footprint were judged higher-risk to
-   this specific development sandbox than to a real target machine);
-   the 4B reference model needs its own validation pass on real
-   reference-class hardware before any competition-facing throughput
-   claim is made.
+3. **Validate against the official Qwen 3 4B reference model — done.**
+   `docs/benchmarks/2026-08-07-qwen3-4b-validation.md`, using the
+   official `Qwen/Qwen3-4B-GGUF` Q4_K_M release. Still not done: running
+   on Ubuntu 22.04 (this and the prior report both ran on Kali) and a
+   larger sample size. **New follow-up items this validation surfaced,
+   not previously known to be needed:**
+   - A founder-level product decision: this reference checkpoint reasons
+     ("thinks") by default, with real response-latency and context-budget
+     consequences named in that report's Interpretation section — needs
+     resolving before the Standard tier's default model is finalized in
+     ADR-0006/ADR-0012.
+   - The measured working set (≈4.81 GiB) includes a ~1.68 GiB
+     `CPU_REPACK` buffer neither ADR-0006 nor ADR-0011 anticipated —
+     investigate whether disabling it is viable for RAM-constrained tiers.
+   - ADR-0011's mandated 8-bit KV-cache quantization is still not wired
+     into `atlas-inference-worker`'s `LlamaContextParams` — this run's KV
+     cache was measured unquantized (f16, 576 MiB).
 4. **KV-cache reuse across conversation turns.** Today, `Worker::generate`
    creates a fresh `LlamaContext` (and KV cache) per request — correct
    and simple, but re-pays prompt-eval cost every turn of a multi-turn

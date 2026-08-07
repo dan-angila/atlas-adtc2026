@@ -67,11 +67,19 @@ Stand up the Rust workspace and prove the hexagonal boundaries from
       on this sandbox's missing Tauri Linux system libraries
       (`pkg-config`, `libwebkit2gtk-4.1-dev`), unrelated to the Runtime
       itself; see `docs/architecture/runtime-architecture.md` §7
-- [ ] Validate against the official Qwen 3 4B Instruct Q4_K_M reference
-      model on Africa Deep Tech Challenge reference hardware (Ubuntu
-      22.04) — the validation above used a smaller model of the same
-      family/quantization by deliberate choice; see the benchmark
-      report's "Not yet done" section
+- [x] Validate against the official Qwen 3 4B reference model — done,
+      `docs/benchmarks/2026-08-07-qwen3-4b-validation.md`, using the
+      official `Qwen/Qwen3-4B-GGUF` Q4_K_M release. **Not yet done**:
+      running on Ubuntu 22.04 (still Kali GNU/Linux Rolling) and a
+      larger sample size — both remain in that report's own "Not yet
+      done" section. **New finding, not previously anticipated**: this
+      reference checkpoint is a reasoning ("thinking") model, and its
+      real measured working set (≈4.81 GiB) leaves little headroom
+      against ADR-0006/ADR-0011's 5–6GB budget once an
+      unanticipated ~1.68 GiB weight-repack buffer is accounted for —
+      see that report's "Interpretation" section for the founder-level
+      decision this surfaces (reasoning vs. non-reasoning model choice)
+      before the Standard tier default is finalized.
 
 **Exit criteria:** `cargo run` on a CLI harness loads a model and returns
 a completion, with the call path running entirely through domain → port →

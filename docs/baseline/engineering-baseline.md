@@ -87,16 +87,23 @@ Last updated: 2026-08-04
 - **RAM-tier arithmetic constraints** — [ADR-0011](../adr/0011-ram-tiering-constraints-amendment.md)
   added the GQA/MQA, KV-cache-quantization, and concrete-context-length
   constraints the original ADR-0006 lacked, and marked the Standard tier
-  provisional. Settling it for real still requires the Qwen 3 4B
-  reference-model benchmark below.
+  provisional. The real Qwen 3 4B benchmark below found the tier's
+  actual working set (≈4.81 GiB) leaves little headroom against the 5–6GB
+  budget once a previously-unbudgeted ~1.68 GiB weight-repack buffer is
+  included — **still not fully settled**, now with a concrete number
+  attached instead of an open question.
 - **Model-licensing constraint for recommended/default models** — added
   in [ADR-0012](../adr/0012-model-licensing-compatibility.md), ahead of
   any specific model being named as a tier default.
-- **Validation against the official Qwen 3 4B Instruct Q4_K_M reference
-  model** on Africa Deep Tech Challenge reference hardware (Ubuntu
-  22.04) has not yet been run — see
-  `docs/benchmarks/2026-08-04-qwen2.5-0.5b-validation.md`'s "Not yet
-  done" section.
+- **Validation against the official Qwen 3 4B reference model** — done,
+  [`docs/benchmarks/2026-08-07-qwen3-4b-validation.md`](../benchmarks/2026-08-07-qwen3-4b-validation.md),
+  using the official `Qwen/Qwen3-4B-GGUF` Q4_K_M release. Surfaced a real
+  founder-level decision this document didn't previously know to ask:
+  that checkpoint is a reasoning ("thinking") model, with real latency/
+  RAM consequences named in that report — **not yet resolved**, and not
+  something this baseline should silently pick a side on. Still
+  outstanding from the original open item: Ubuntu 22.04 (still Kali) and
+  a larger sample size.
 
 ## What's next
 
