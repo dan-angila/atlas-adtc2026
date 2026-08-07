@@ -183,9 +183,11 @@ fn main() {
     println!("query: {query:?}");
     for (rank, result) in results.iter().enumerate() {
         println!(
-            "  #{}: score={:.4}, heading_path={:?}",
+            "  #{}: score={:.4}, matched_lexical={}, matched_semantic={}, heading_path={:?}",
             rank + 1,
             result.score,
+            result.matched_lexical,
+            result.matched_semantic,
             result.chunk.heading_path
         );
         println!(
@@ -193,6 +195,12 @@ fn main() {
             &result.chunk.text[..result.chunk.text.len().min(80)]
         );
     }
+    println!(
+        "confidence: {:?} (note: this corpus is far smaller than the semantic leg's internal \
+         candidate pool, so matched_semantic is not a strong signal here — see RetrievedChunk's \
+         doc comment)",
+        atlas_engine::retrieval::assess_confidence(&results)
+    );
 
     assert!(
         !results.is_empty(),

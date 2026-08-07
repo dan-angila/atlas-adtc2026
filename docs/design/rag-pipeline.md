@@ -198,6 +198,22 @@ measured in
 (retrieval *quality* at real corpus scale remains unmeasured — see that
 report).
 
+**Retrieval confidence — implemented**
+(`crates/atlas-engine/src/retrieval/confidence.rs`): each
+`RetrievedChunk` now records whether it was found by the lexical leg,
+the semantic leg, or both (`matched_lexical`/`matched_semantic`), and
+`assess_confidence` turns the top result's corroboration into
+`NoEvidence`/`Weak`/`Strong`. Deliberately **not** an absolute score
+threshold — there is no real, relevance-judged corpus yet to calibrate
+one against (fabricating a threshold number would be exactly the kind of
+placeholder this project's standards rule out). Instead it's grounded in
+why hybrid retrieval exists at all: a result two independent methods
+agree on is structurally more trustworthy than one resting on a single
+method's blind spot. This is deliberately upstream of, and does not
+itself implement, any refusal behavior — a future Conversation & Session
+feature can consume this signal once §7's context assembly (below)
+exists to have something to refuse *from*.
+
 ## 7. Context assembly
 
 Uses the already-implemented `ContextManager`

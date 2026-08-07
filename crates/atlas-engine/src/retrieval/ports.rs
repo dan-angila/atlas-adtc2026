@@ -35,6 +35,24 @@ pub enum RetrievalError {
 /// repositories — it's a Reciprocal Rank Fusion sum
 /// ([`super::fusion::reciprocal_rank_fusion`]), not a normalized
 /// probability or distance.
+///
+/// `matched_lexical`/`matched_semantic` record which retrieval leg(s)
+/// independently surfaced this chunk — the raw material
+/// [`super::confidence::assess_confidence`] uses, since a chunk
+/// corroborated by two different matching mechanisms is structurally
+/// more trustworthy than one found by only one method's blind spot.
+///
+/// **Caveat:** `matched_semantic` reflects membership in the semantic
+/// leg's fixed-size nearest-neighbor candidate pool, not a similarity
+/// threshold — a k-nearest-neighbor query with `k` larger than the
+/// knowledge base's total chunk count returns *every* chunk, ranked by
+/// distance, with no relevance cutoff. In a knowledge base smaller than
+/// that candidate pool (see `CANDIDATE_OVERSAMPLE_FACTOR`/
+/// `MIN_CANDIDATES` in `sqlite_store.rs`), `matched_semantic` is
+/// trivially `true` for nearly everything and carries little signal;
+/// `matched_lexical` doesn't have this caveat, since FTS5's `MATCH`
+/// only returns chunks that actually contain a query term regardless of
+/// how large the candidate limit is.
 #[derive(Debug, Clone, PartialEq)]
 pub struct RetrievedChunk {
     /// The matched chunk, in full — the caller needs its text and
@@ -43,6 +61,10 @@ pub struct RetrievedChunk {
     /// This result's fused relevance score for the query that produced
     /// it.
     pub score: f64,
+    /// Whether this chunk was found by the lexical (FTS5 BM25) leg.
+    pub matched_lexical: bool,
+    /// Whether this chunk was found by the semantic (vector/cosine) leg.
+    pub matched_semantic: bool,
 }
 
 /// Stores ingested documents and chunks, and answers hybrid search
@@ -219,6 +241,11 @@ pub mod testing {
             let semantic_ids: Vec<ChunkId> =
                 semantic_ranked.into_iter().map(|(id, _)| id).collect();
 
+            let lexical_set: std::collections::HashSet<ChunkId> =
+                lexical_ids.iter().copied().collect();
+            let semantic_set: std::collections::HashSet<ChunkId> =
+                semantic_ids.iter().copied().collect();
+
             let fused = reciprocal_rank_fusion(&[lexical_ids, semantic_ids], DEFAULT_RRF_K);
 
             Ok(fused
@@ -231,6 +258,8 @@ pub mod testing {
                         .map(|stored| RetrievedChunk {
                             chunk: stored.chunk.clone(),
                             score,
+                            matched_lexical: lexical_set.contains(&id),
+                            matched_semantic: semantic_set.contains(&id),
                         })
                 })
                 .collect())

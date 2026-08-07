@@ -266,6 +266,13 @@ impl KnowledgeRepository for SqliteKnowledgeRepository {
         let lexical_rowids = lexical_search(&connection, query_text, candidate_count)?;
         let semantic_rowids = semantic_search(&connection, query_embedding, candidate_count)?;
 
+        // Captured before fusion moves the two Vecs, so each result can
+        // still report which leg(s) corroborated it — the raw material
+        // for `confidence::assess_confidence`.
+        let lexical_set: std::collections::HashSet<i64> = lexical_rowids.iter().copied().collect();
+        let semantic_set: std::collections::HashSet<i64> =
+            semantic_rowids.iter().copied().collect();
+
         let fused = reciprocal_rank_fusion(&[lexical_rowids, semantic_rowids], DEFAULT_RRF_K);
 
         let mut results = Vec::with_capacity(limit.min(fused.len()));
@@ -273,6 +280,8 @@ impl KnowledgeRepository for SqliteKnowledgeRepository {
             results.push(RetrievedChunk {
                 chunk: load_chunk_by_rowid(&connection, rowid)?,
                 score,
+                matched_lexical: lexical_set.contains(&rowid),
+                matched_semantic: semantic_set.contains(&rowid),
             });
         }
         Ok(results)
@@ -534,6 +543,55 @@ mod tests {
             .search("amoxicillin dosage", &[1.0, 0.0, 0.0], 10)
             .unwrap();
         assert_eq!(results[0].chunk.text, both.text);
+    }
+
+    #[test]
+    fn matched_lexical_and_matched_semantic_are_correct_once_the_semantic_leg_actually_filters() {
+        // The semantic leg's candidate pool is bounded (MIN_CANDIDATES),
+        // so with too few stored chunks *everything* trivially appears
+        // in it regardless of actual similarity — this test stores
+        // enough chunks that the semantic leg genuinely excludes the
+        // one that shouldn't match, giving matched_semantic real
+        // meaning rather than an artifact of a tiny corpus.
+        let repo = SqliteKnowledgeRepository::open_in_memory(2).unwrap();
+        let doc = document();
+        repo.store_document(&doc).unwrap();
+
+        // 19 chunks semantically close to the query, none containing
+        // the lexical query term.
+        for i in 0..19u16 {
+            let filler = chunk_for(doc.id, &format!("cluster filler chunk {i}"));
+            repo.store_chunk(&filler, &[1.0, 0.01 * f32::from(i)])
+                .unwrap();
+        }
+        // Semantically close AND lexically matching — should match both legs.
+        let both = chunk_for(doc.id, "targetword also present here");
+        repo.store_chunk(&both, &[1.0, 0.0]).unwrap();
+        // Semantically as far as possible (opposite direction) but
+        // lexically matching — should match lexical only, once the 20
+        // nearest-neighbor cutoff excludes it.
+        let lexical_only = chunk_for(doc.id, "targetword mentioned here");
+        repo.store_chunk(&lexical_only, &[-1.0, 0.0]).unwrap();
+
+        let results = repo.search("targetword", &[1.0, 0.0], 3).unwrap();
+
+        let both_result = results
+            .iter()
+            .find(|r| r.chunk.text == both.text)
+            .expect("the chunk matching both legs must be present");
+        assert!(both_result.matched_lexical);
+        assert!(both_result.matched_semantic);
+
+        let lexical_only_result = results
+            .iter()
+            .find(|r| r.chunk.text == lexical_only.text)
+            .expect("the lexically-matching, semantically-distant chunk must still be present");
+        assert!(lexical_only_result.matched_lexical);
+        assert!(
+            !lexical_only_result.matched_semantic,
+            "a chunk in the opposite direction from the query must be excluded from the \
+             nearest-neighbor candidate pool once corpus size exceeds it"
+        );
     }
 
     #[test]

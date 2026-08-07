@@ -161,6 +161,12 @@ coverage for malformed/edge-case inputs per format.
       corpus with known-relevant answers, which doesn't exist yet (see
       that report's "Not yet done" — this is the item the exit criterion
       below is not fully met by).
+- [x] Retrieval confidence — `crates/atlas-engine/src/retrieval/confidence.rs`:
+      a structural `NoEvidence`/`Weak`/`Strong` signal from which
+      retrieval leg(s) corroborate the top result, deliberately not an
+      unbenchmarked absolute score threshold. Upstream of, and does not
+      itself implement, refusal behavior — that needs Phase 4's context
+      assembly to exist first.
 - [x] Full pipeline proven end to end against real components (no mocks):
       `crates/atlas-engine/examples/validate_ingestion_pipeline.rs`
       parses and chunks a real document, embeds it through a real
