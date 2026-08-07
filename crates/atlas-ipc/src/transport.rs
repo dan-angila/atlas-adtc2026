@@ -169,7 +169,8 @@ mod tests {
         assert!(matches!(received, WorkerRequest::HealthCheck));
 
         let response = WorkerResponse::Health(HealthInfo {
-            model_loaded: false,
+            generation_model_loaded: false,
+            embedding_model_loaded: false,
             uptime_ms: 0,
             protocol_version: crate::PROTOCOL_VERSION,
         });

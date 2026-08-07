@@ -25,7 +25,8 @@ mod protocol;
 mod transport;
 
 pub use protocol::{
-    GenerateRequest, GenerationStats, HealthInfo, LoadModelRequest, ModelLoadedInfo, TokenChunk,
-    WorkerError, WorkerErrorKind, WorkerRequest, WorkerResponse, PROTOCOL_VERSION,
+    EmbedRequest, EmbeddingsResponse, GenerateRequest, GenerationStats, HealthInfo,
+    LoadModelRequest, ModelLoadedInfo, ModelSlot, TokenChunk, WorkerError, WorkerErrorKind,
+    WorkerRequest, WorkerResponse, PROTOCOL_VERSION,
 };
 pub use transport::{connect, listen, read_message, socket_path, write_message, IpcError};

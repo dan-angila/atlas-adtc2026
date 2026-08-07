@@ -93,14 +93,19 @@ fn handle_request(
             handle_generate(worker, &req, writer)?;
         }
 
-        WorkerRequest::Unload => {
-            worker.unload();
+        WorkerRequest::Embed(req) => {
+            handle_embed(worker, &req, writer)?;
+        }
+
+        WorkerRequest::Unload(slot) => {
+            worker.unload(slot);
             write_message(writer, &WorkerResponse::Ack)?;
         }
 
         WorkerRequest::HealthCheck => {
             let response = WorkerResponse::Health(HealthInfo {
-                model_loaded: worker.is_loaded(),
+                generation_model_loaded: worker.is_loaded(atlas_ipc::ModelSlot::Generation),
+                embedding_model_loaded: worker.is_loaded(atlas_ipc::ModelSlot::Embedding),
                 uptime_ms: u64::try_from(worker.uptime().as_millis()).unwrap_or(u64::MAX),
                 protocol_version: PROTOCOL_VERSION,
             });
@@ -162,6 +167,32 @@ fn handle_generate(
         Err(error) => {
             tracing::error!(%error, "generation failed");
             WorkerResponse::Error(error.to_wire_error())
+        }
+    };
+    write_message(writer, &response)
+}
+
+/// `Embed` requests don't stream — a full batch of vectors comes back in
+/// one response — so unlike `handle_generate` this needs no mid-flight
+/// write-failure bookkeeping.
+fn handle_embed(
+    worker: &mut Worker,
+    request: &atlas_ipc::EmbedRequest,
+    writer: &mut UnixStream,
+) -> Result<(), IpcError> {
+    let response = match worker.embed(request, request.thread_count) {
+        Ok(vectors) => {
+            let embedding_dimension = vectors
+                .first()
+                .map_or(0, |v| u32::try_from(v.len()).unwrap_or(u32::MAX));
+            WorkerResponse::Embeddings(atlas_ipc::EmbeddingsResponse {
+                vectors,
+                embedding_dimension,
+            })
+        }
+        Err(error) => {
+            tracing::error!(%error, "embedding failed");
+            WorkerResponse::Error(error.to_wire_error_for_embedding())
         }
     };
     write_message(writer, &response)

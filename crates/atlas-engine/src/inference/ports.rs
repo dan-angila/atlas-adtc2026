@@ -31,21 +31,60 @@ pub enum InferenceEngineError {
     /// already-returned stream.
     #[error("failed to start generation: {0}")]
     GenerationFailed(String),
+    /// [`InferenceEngine::embed`] failed partway through.
+    #[error("failed to embed: {0}")]
+    EmbeddingFailed(String),
     /// The engine itself is unavailable (e.g. the worker process isn't
     /// running and couldn't be started).
     #[error("inference engine unavailable: {0}")]
     Unavailable(String),
 }
 
+/// Which of the engine's two independent model roles a request targets.
+///
+/// Kept distinct from `atlas_ipc::ModelSlot` deliberately: this port
+/// must not know it happens to be implemented over a wire protocol
+/// (`docs/architecture/module-boundaries.md` rule 2) — [`super::runtime_manager::RuntimeManager`]
+/// maps this to the wire-level type internally.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ModelRole {
+    /// The text-generation model.
+    Generation,
+    /// The dedicated embedding model, kept resident alongside the
+    /// generation model per
+    /// `docs/adr/0006-quantization-model-tiering-ram-envelope.md`.
+    Embedding,
+}
+
 /// Parameters for [`InferenceEngine::load_model`].
 #[derive(Debug, Clone, PartialEq)]
 pub struct LoadModelSpec {
+    /// Which model role this load targets.
+    pub role: ModelRole,
     /// Absolute path to the GGUF file to load.
     pub path: PathBuf,
     /// Context window size to allocate.
     pub context_length: u32,
     /// CPU thread count to use.
     pub thread_count: i32,
+}
+
+/// Parameters for [`InferenceEngine::embed`].
+#[derive(Debug, Clone, PartialEq)]
+pub struct EmbedSpec {
+    /// The texts to embed, in order.
+    pub texts: Vec<String>,
+    /// CPU thread count to use.
+    pub thread_count: i32,
+}
+
+/// Result of a successful [`InferenceEngine::embed`] call.
+#[derive(Debug, Clone, PartialEq)]
+pub struct EmbeddingBatch {
+    /// One embedding vector per requested text, same order.
+    pub vectors: Vec<Vec<f32>>,
+    /// The embedding model's vector width.
+    pub embedding_dimension: u32,
 }
 
 /// Parameters for [`InferenceEngine::generate`].
@@ -73,8 +112,10 @@ pub struct LoadedModelInfo {
 /// A liveness/readiness snapshot.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct HealthSnapshot {
-    /// Whether a model is currently loaded.
-    pub model_loaded: bool,
+    /// Whether a generation model is currently loaded.
+    pub generation_model_loaded: bool,
+    /// Whether an embedding model is currently loaded.
+    pub embedding_model_loaded: bool,
     /// How long the engine has been running.
     pub uptime: Duration,
 }
@@ -84,7 +125,9 @@ pub struct HealthSnapshot {
 /// caller of this trait knows or cares whether it's talking to a real
 /// llama.cpp worker process or a test double.
 pub trait InferenceEngine: Send + Sync {
-    /// Loads a model, replacing any currently loaded model.
+    /// Loads a model into `spec.role`, replacing whatever was previously
+    /// loaded in that role only — the other role's model, if any, is
+    /// untouched.
     ///
     /// # Errors
     ///
@@ -93,13 +136,25 @@ pub trait InferenceEngine: Send + Sync {
     /// itself couldn't be reached.
     fn load_model(&self, spec: LoadModelSpec) -> Result<LoadedModelInfo, InferenceEngineError>;
 
-    /// Unloads the current model, if any.
+    /// Unloads the model in the given role, if any, without touching the
+    /// other role.
     ///
     /// # Errors
     ///
     /// Returns [`InferenceEngineError::Unavailable`] if the engine
     /// itself couldn't be reached.
-    fn unload_model(&self) -> Result<(), InferenceEngineError>;
+    fn unload_model(&self, role: ModelRole) -> Result<(), InferenceEngineError>;
+
+    /// Embeds a batch of texts against the currently loaded embedding
+    /// model, returning one pooled vector per input text in the same
+    /// order.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`InferenceEngineError::NotLoaded`] if no embedding model
+    /// is loaded, or [`InferenceEngineError::Unavailable`] if the engine
+    /// itself couldn't be reached.
+    fn embed(&self, spec: EmbedSpec) -> Result<EmbeddingBatch, InferenceEngineError>;
 
     /// Starts generating a completion for `spec`, returning a token
     /// stream. A `NotLoaded`/`GenerationFailed` error here means
@@ -134,15 +189,16 @@ pub mod testing {
     use std::time::Instant;
 
     use super::{
-        GenerateSpec, HealthSnapshot, InferenceEngine, InferenceEngineError, LoadModelSpec,
-        LoadedModelInfo,
+        EmbedSpec, EmbeddingBatch, GenerateSpec, HealthSnapshot, InferenceEngine,
+        InferenceEngineError, LoadModelSpec, LoadedModelInfo, ModelRole,
     };
     use crate::inference::streaming::{self, GenerationSummary, TokenStream};
 
     /// An in-process [`InferenceEngine`] that generates a fixed,
     /// configurable response instead of running real inference.
     pub struct FakeInferenceEngine {
-        loaded: AtomicBool,
+        generation_loaded: AtomicBool,
+        embedding_loaded: AtomicBool,
         response_tokens: Mutex<Vec<String>>,
         started_at: Instant,
     }
@@ -154,19 +210,24 @@ pub mod testing {
         #[must_use]
         pub fn new(response_tokens: Vec<String>) -> Self {
             Self {
-                loaded: AtomicBool::new(false),
+                generation_loaded: AtomicBool::new(false),
+                embedding_loaded: AtomicBool::new(false),
                 response_tokens: Mutex::new(response_tokens),
                 started_at: Instant::now(),
+            }
+        }
+
+        fn loaded_flag(&self, role: ModelRole) -> &AtomicBool {
+            match role {
+                ModelRole::Generation => &self.generation_loaded,
+                ModelRole::Embedding => &self.embedding_loaded,
             }
         }
     }
 
     impl InferenceEngine for FakeInferenceEngine {
-        fn load_model(
-            &self,
-            _spec: LoadModelSpec,
-        ) -> Result<LoadedModelInfo, InferenceEngineError> {
-            self.loaded.store(true, Ordering::SeqCst);
+        fn load_model(&self, spec: LoadModelSpec) -> Result<LoadedModelInfo, InferenceEngineError> {
+            self.loaded_flag(spec.role).store(true, Ordering::SeqCst);
             Ok(LoadedModelInfo {
                 context_length: 4096,
                 vocab_size: 32000,
@@ -175,13 +236,30 @@ pub mod testing {
             })
         }
 
-        fn unload_model(&self) -> Result<(), InferenceEngineError> {
-            self.loaded.store(false, Ordering::SeqCst);
+        fn unload_model(&self, role: ModelRole) -> Result<(), InferenceEngineError> {
+            self.loaded_flag(role).store(false, Ordering::SeqCst);
             Ok(())
         }
 
+        fn embed(&self, spec: EmbedSpec) -> Result<EmbeddingBatch, InferenceEngineError> {
+            if !self.embedding_loaded.load(Ordering::SeqCst) {
+                return Err(InferenceEngineError::NotLoaded);
+            }
+            // Fixed-width fake vectors, deterministic from text length so
+            // tests can assert on more than just the shape.
+            let vectors = spec
+                .texts
+                .iter()
+                .map(|text| vec![text.len() as f32; 8])
+                .collect();
+            Ok(EmbeddingBatch {
+                vectors,
+                embedding_dimension: 8,
+            })
+        }
+
         fn generate(&self, _spec: GenerateSpec) -> Result<TokenStream, InferenceEngineError> {
-            if !self.loaded.load(Ordering::SeqCst) {
+            if !self.generation_loaded.load(Ordering::SeqCst) {
                 return Err(InferenceEngineError::NotLoaded);
             }
 
@@ -212,7 +290,8 @@ pub mod testing {
 
         fn health(&self) -> Result<HealthSnapshot, InferenceEngineError> {
             Ok(HealthSnapshot {
-                model_loaded: self.loaded.load(Ordering::SeqCst),
+                generation_model_loaded: self.generation_loaded.load(Ordering::SeqCst),
+                embedding_model_loaded: self.embedding_loaded.load(Ordering::SeqCst),
                 uptime: self.started_at.elapsed(),
             })
         }
@@ -238,6 +317,7 @@ pub mod testing {
                 FakeInferenceEngine::new(vec!["Hello".to_string(), ", world!".to_string()]);
             engine
                 .load_model(LoadModelSpec {
+                    role: ModelRole::Generation,
                     path: "/fake/model.gguf".into(),
                     context_length: 4096,
                     thread_count: 4,
@@ -256,21 +336,59 @@ pub mod testing {
         }
 
         #[test]
-        fn fake_engine_health_reflects_load_state() {
+        fn fake_engine_health_reflects_load_state_per_role() {
             let engine = FakeInferenceEngine::new(vec![]);
-            assert!(!engine.health().unwrap().model_loaded);
+            assert!(!engine.health().unwrap().generation_model_loaded);
+            assert!(!engine.health().unwrap().embedding_model_loaded);
 
             engine
                 .load_model(LoadModelSpec {
+                    role: ModelRole::Generation,
                     path: "/fake/model.gguf".into(),
                     context_length: 4096,
                     thread_count: 4,
                 })
                 .unwrap();
-            assert!(engine.health().unwrap().model_loaded);
+            assert!(engine.health().unwrap().generation_model_loaded);
+            assert!(!engine.health().unwrap().embedding_model_loaded);
 
-            engine.unload_model().unwrap();
-            assert!(!engine.health().unwrap().model_loaded);
+            engine.unload_model(ModelRole::Generation).unwrap();
+            assert!(!engine.health().unwrap().generation_model_loaded);
+        }
+
+        #[test]
+        fn fake_engine_rejects_embedding_before_an_embedding_model_is_loaded() {
+            let engine = FakeInferenceEngine::new(vec![]);
+            let result = engine.embed(EmbedSpec {
+                texts: vec!["hello".to_string()],
+                thread_count: 1,
+            });
+            assert!(matches!(result, Err(InferenceEngineError::NotLoaded)));
+        }
+
+        #[test]
+        fn fake_engine_embeds_after_loading_an_embedding_model_independently_of_generation() {
+            let engine = FakeInferenceEngine::new(vec![]);
+            engine
+                .load_model(LoadModelSpec {
+                    role: ModelRole::Embedding,
+                    path: "/fake/embed.gguf".into(),
+                    context_length: 2048,
+                    thread_count: 2,
+                })
+                .unwrap();
+            // Loading only the embedding model must not satisfy generation.
+            assert!(!engine.health().unwrap().generation_model_loaded);
+
+            let batch = engine
+                .embed(EmbedSpec {
+                    texts: vec!["ab".to_string(), "abcd".to_string()],
+                    thread_count: 2,
+                })
+                .unwrap();
+            assert_eq!(batch.vectors.len(), 2);
+            assert_eq!(batch.embedding_dimension, 8);
+            assert_ne!(batch.vectors[0], batch.vectors[1]);
         }
     }
 }

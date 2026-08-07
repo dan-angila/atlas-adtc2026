@@ -97,7 +97,7 @@ pub fn run_benchmark(
         }
     };
 
-    if !health.model_loaded {
+    if !health.generation_model_loaded {
         return BenchmarkReport {
             prompt: prompt.to_string(),
             hardware,
@@ -177,7 +177,7 @@ pub struct BenchmarkSubject {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::inference::ports::{testing::FakeInferenceEngine, LoadModelSpec};
+    use crate::inference::ports::{testing::FakeInferenceEngine, LoadModelSpec, ModelRole};
 
     #[test]
     fn benchmark_without_a_loaded_model_honestly_reports_no_generation() {
@@ -197,6 +197,7 @@ mod tests {
         ]);
         engine
             .load_model(LoadModelSpec {
+                role: ModelRole::Generation,
                 path: "/fake/model.gguf".into(),
                 context_length: 4096,
                 thread_count: 4,

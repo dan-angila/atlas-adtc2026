@@ -25,16 +25,27 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use atlas_ipc::{
-    read_message, write_message, GenerateRequest, IpcError, LoadModelRequest, WorkerRequest,
-    WorkerResponse,
+    read_message, write_message, EmbedRequest, GenerateRequest, IpcError, LoadModelRequest,
+    ModelSlot as WireModelSlot, WorkerRequest, WorkerResponse,
 };
 
 use super::errors::RestartPolicy;
 use super::ports::{
-    GenerateSpec, HealthSnapshot, InferenceEngine, InferenceEngineError, LoadModelSpec,
-    LoadedModelInfo,
+    EmbedSpec, EmbeddingBatch, GenerateSpec, HealthSnapshot, InferenceEngine, InferenceEngineError,
+    LoadModelSpec, LoadedModelInfo, ModelRole,
 };
 use super::streaming::{self, GenerationSummary, TokenStream};
+
+/// Maps the port's adapter-agnostic [`ModelRole`] onto the wire
+/// protocol's [`WireModelSlot`] — this is the one place that should ever
+/// know these two enums correspond to each other, per
+/// `docs/architecture/module-boundaries.md` rule 2.
+fn to_wire_slot(role: ModelRole) -> WireModelSlot {
+    match role {
+        ModelRole::Generation => WireModelSlot::Generation,
+        ModelRole::Embedding => WireModelSlot::Embedding,
+    }
+}
 
 /// How long to keep retrying a connection to a freshly spawned worker
 /// before giving up. Worker startup is just process spawn + llama.cpp
@@ -249,6 +260,7 @@ impl InferenceEngine for RuntimeManager {
         })?;
 
         let request = WorkerRequest::LoadModel(LoadModelRequest {
+            slot: to_wire_slot(spec.role),
             path: spec.path,
             context_length: spec.context_length,
             thread_count: spec.thread_count,
@@ -269,11 +281,32 @@ impl InferenceEngine for RuntimeManager {
         }
     }
 
-    fn unload_model(&self) -> Result<(), InferenceEngineError> {
-        match self.request_response(&WorkerRequest::Unload)? {
+    fn unload_model(&self, role: ModelRole) -> Result<(), InferenceEngineError> {
+        match self.request_response(&WorkerRequest::Unload(to_wire_slot(role)))? {
             WorkerResponse::Ack => Ok(()),
             other => Err(InferenceEngineError::Unavailable(format!(
                 "unexpected response to Unload: {other:?}"
+            ))),
+        }
+    }
+
+    fn embed(&self, spec: EmbedSpec) -> Result<EmbeddingBatch, InferenceEngineError> {
+        let request = WorkerRequest::Embed(EmbedRequest {
+            texts: spec.texts,
+            thread_count: spec.thread_count,
+        });
+
+        match self.request_response(&request)? {
+            WorkerResponse::Embeddings(response) => Ok(EmbeddingBatch {
+                vectors: response.vectors,
+                embedding_dimension: response.embedding_dimension,
+            }),
+            WorkerResponse::Error(error) => match error.kind {
+                atlas_ipc::WorkerErrorKind::NotLoaded => Err(InferenceEngineError::NotLoaded),
+                _ => Err(InferenceEngineError::EmbeddingFailed(error.message)),
+            },
+            other => Err(InferenceEngineError::Unavailable(format!(
+                "unexpected response to Embed: {other:?}"
             ))),
         }
     }
@@ -361,7 +394,8 @@ impl InferenceEngine for RuntimeManager {
     fn health(&self) -> Result<HealthSnapshot, InferenceEngineError> {
         match self.request_response(&WorkerRequest::HealthCheck)? {
             WorkerResponse::Health(info) => Ok(HealthSnapshot {
-                model_loaded: info.model_loaded,
+                generation_model_loaded: info.generation_model_loaded,
+                embedding_model_loaded: info.embedding_model_loaded,
                 uptime: Duration::from_millis(info.uptime_ms),
             }),
             other => Err(InferenceEngineError::Unavailable(format!(
@@ -429,7 +463,8 @@ mod tests {
         let health = manager
             .health()
             .expect("health check against a real spawned worker");
-        assert!(!health.model_loaded);
+        assert!(!health.generation_model_loaded);
+        assert!(!health.embedding_model_loaded);
     }
 
     #[test]
@@ -444,6 +479,7 @@ mod tests {
 
         let manager = RuntimeManager::new(binary_path, "test-load-nonexistent");
         let result = manager.load_model(LoadModelSpec {
+            role: ModelRole::Generation,
             path: "/definitely/does/not/exist.gguf".into(),
             context_length: 2048,
             thread_count: 2,
@@ -469,6 +505,7 @@ mod tests {
         std::fs::write(&path, b"not a gguf file at all").expect("write corrupt fixture");
 
         let result = manager.load_model(LoadModelSpec {
+            role: ModelRole::Generation,
             path,
             context_length: 2048,
             thread_count: 2,

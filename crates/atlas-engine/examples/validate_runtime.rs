@@ -31,7 +31,7 @@ use atlas_engine::inference::benchmark::run_benchmark;
 use atlas_engine::inference::hardware::{detect_cpu_capabilities, detect_hardware};
 use atlas_engine::inference::memory::select_tier;
 use atlas_engine::inference::model_registry::validate_model_file;
-use atlas_engine::inference::ports::{GenerateSpec, InferenceEngine, LoadModelSpec};
+use atlas_engine::inference::ports::{GenerateSpec, InferenceEngine, LoadModelSpec, ModelRole};
 use atlas_engine::inference::runtime_manager::RuntimeManager;
 use atlas_engine::inference::streaming::StreamEvent;
 use atlas_engine::inference::thread_scheduler::recommended_thread_count;
@@ -71,6 +71,7 @@ fn main() {
     let load_start = std::time::Instant::now();
     let loaded_info = manager
         .load_model(LoadModelSpec {
+            role: ModelRole::Generation,
             path: model_path,
             context_length: 4096,
             thread_count: threads,

@@ -2,7 +2,10 @@ use std::num::NonZeroU32;
 use std::time::Instant;
 
 use atlas_domain::InferenceParams;
-use atlas_ipc::{GenerateRequest, GenerationStats, LoadModelRequest, ModelLoadedInfo, TokenChunk};
+use atlas_ipc::{
+    EmbedRequest, GenerateRequest, GenerationStats, LoadModelRequest, ModelLoadedInfo, ModelSlot,
+    TokenChunk,
+};
 use llama_cpp_2::context::params::LlamaContextParams;
 use llama_cpp_2::llama_backend::LlamaBackend;
 use llama_cpp_2::llama_batch::LlamaBatch;
@@ -13,24 +16,30 @@ use rand::Rng;
 
 use crate::error::WorkerRuntimeError;
 
-/// Owns the llama.cpp backend and, once a model is loaded, the model
-/// weights. This is the one type in the workspace that touches llama.cpp
-/// directly — see `docs/adr/0010-inference-worker-process-isolation.md`.
+/// Owns the llama.cpp backend and, once loaded, up to two models: one
+/// for text generation, one for embeddings. This is the one type in the
+/// workspace that touches llama.cpp directly — see
+/// `docs/adr/0010-inference-worker-process-isolation.md`. Two independent
+/// slots (rather than one, replaced on every load) exist specifically so
+/// the embedding model can stay resident alongside the generation model,
+/// per `docs/adr/0006-quantization-model-tiering-ram-envelope.md`.
 ///
 /// Inference contexts are **not** stored here across requests: each
-/// [`Worker::generate`] call creates a fresh [`llama_cpp_2::context::LlamaContext`]
-/// scoped to that call, uses it, and drops it. This sidesteps a
-/// self-referential-struct problem (a context borrows from the model)
-/// without needing `unsafe` or an extra dependency, at the cost of
-/// re-allocating the KV cache buffer per request rather than reusing it
-/// across turns of a conversation. That reuse is a legitimate future
-/// optimization (tracked in the remaining roadmap) once the Conversation
-/// & Session context defines what "reuse across turns" should actually
-/// mean — today, every request is prompted with full context from the
-/// caller, so statelessness here is not a regression.
+/// [`Worker::generate`] or [`Worker::embed`] call creates a fresh
+/// [`llama_cpp_2::context::LlamaContext`] scoped to that call, uses it,
+/// and drops it. This sidesteps a self-referential-struct problem (a
+/// context borrows from the model) without needing `unsafe` or an extra
+/// dependency, at the cost of re-allocating the KV cache buffer per
+/// request rather than reusing it across turns of a conversation. That
+/// reuse is a legitimate future optimization (tracked in the remaining
+/// roadmap) once the Conversation & Session context defines what "reuse
+/// across turns" should actually mean — today, every request is prompted
+/// with full context from the caller, so statelessness here is not a
+/// regression.
 pub struct Worker {
     backend: LlamaBackend,
-    model: Option<LlamaModel>,
+    generation_model: Option<LlamaModel>,
+    embedding_model: Option<LlamaModel>,
     started_at: Instant,
 }
 
@@ -47,7 +56,8 @@ impl Worker {
         let backend = LlamaBackend::init()?;
         Ok(Self {
             backend,
-            model: None,
+            generation_model: None,
+            embedding_model: None,
             started_at: Instant::now(),
         })
     }
@@ -58,19 +68,34 @@ impl Worker {
         self.started_at.elapsed()
     }
 
-    /// Whether a model is currently loaded.
+    /// Whether a model is currently loaded in the given slot.
     #[must_use]
-    pub fn is_loaded(&self) -> bool {
-        self.model.is_some()
+    pub fn is_loaded(&self, slot: ModelSlot) -> bool {
+        self.slot(slot).is_some()
     }
 
-    /// Loads a GGUF model from disk, replacing any previously loaded
-    /// model. GPU offload is always disabled
-    /// (`docs/adr/0003-llama-cpp-gguf-inference-engine.md`: CPU-only) —
-    /// `request.gpu_layers` is honored as sent rather than hardcoded to
-    /// `0` here, so a deliberate ADR-level change to that constraint
-    /// doesn't require touching this function, but the Runtime Manager
-    /// is expected to always send `0` today.
+    fn slot(&self, slot: ModelSlot) -> &Option<LlamaModel> {
+        match slot {
+            ModelSlot::Generation => &self.generation_model,
+            ModelSlot::Embedding => &self.embedding_model,
+        }
+    }
+
+    fn slot_mut(&mut self, slot: ModelSlot) -> &mut Option<LlamaModel> {
+        match slot {
+            ModelSlot::Generation => &mut self.generation_model,
+            ModelSlot::Embedding => &mut self.embedding_model,
+        }
+    }
+
+    /// Loads a GGUF model from disk into `request.slot`, replacing
+    /// whatever was previously loaded in that slot only — the other
+    /// slot's model, if any, is untouched. GPU offload is always
+    /// disabled (`docs/adr/0003-llama-cpp-gguf-inference-engine.md`:
+    /// CPU-only) — `request.gpu_layers` is honored as sent rather than
+    /// hardcoded to `0` here, so a deliberate ADR-level change to that
+    /// constraint doesn't require touching this function, but the
+    /// Runtime Manager is expected to always send `0` today.
     ///
     /// # Errors
     ///
@@ -96,14 +121,15 @@ impl Worker {
             layer_count: model.n_layer(),
         };
 
-        self.model = Some(model);
+        *self.slot_mut(request.slot) = Some(model);
         Ok(info)
     }
 
-    /// Unloads the current model, if any, freeing its memory without
-    /// stopping the worker process.
-    pub fn unload(&mut self) {
-        self.model = None;
+    /// Unloads the model in the given slot, if any, freeing its memory
+    /// without stopping the worker process itself or touching the other
+    /// slot.
+    pub fn unload(&mut self, slot: ModelSlot) {
+        *self.slot_mut(slot) = None;
     }
 
     /// Generates a completion for `request.prompt`, invoking `on_token`
@@ -128,7 +154,10 @@ impl Worker {
         thread_count: i32,
         mut on_token: impl FnMut(TokenChunk) -> bool,
     ) -> Result<GenerationStats, WorkerRuntimeError> {
-        let model = self.model.as_ref().ok_or(WorkerRuntimeError::NotLoaded)?;
+        let model = self
+            .generation_model
+            .as_ref()
+            .ok_or(WorkerRuntimeError::NotLoaded)?;
 
         let ctx_params = LlamaContextParams::default()
             .with_n_ctx(NonZeroU32::new(context_length.max(1)))
@@ -200,6 +229,65 @@ impl Worker {
             tokens_per_second: f64::from(generated_token_count) / generation_seconds,
         })
     }
+
+    /// Embeds each text in `request.texts`, returning one pooled vector
+    /// per text in the same order. Pooling strategy (mean, CLS, last —
+    /// see `LLAMA_POOLING_TYPE_*`) is left to the loaded model's own
+    /// declared default rather than forced here, since that is a
+    /// property of the specific embedding model, not a runtime choice.
+    ///
+    /// One context is created for the whole request and reused across
+    /// texts (its KV cache is cleared between texts) rather than
+    /// recreated per text — unlike [`Worker::generate`]'s per-call
+    /// context, amortizing context creation matters here because a
+    /// single ingestion batch can embed hundreds of chunks in one
+    /// request.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`WorkerRuntimeError::NotLoaded`] if no embedding model is
+    /// loaded, or a generation-specific error (reused for embeddings —
+    /// tokenization/context/decode failures are the same class of
+    /// failure either way) if tokenization, context creation, or
+    /// decoding fails partway through.
+    pub fn embed(
+        &self,
+        request: &EmbedRequest,
+        thread_count: i32,
+    ) -> Result<Vec<Vec<f32>>, WorkerRuntimeError> {
+        let model = self
+            .embedding_model
+            .as_ref()
+            .ok_or(WorkerRuntimeError::NotLoaded)?;
+
+        let ctx_params = LlamaContextParams::default()
+            .with_n_ctx(NonZeroU32::new(model.n_ctx_train().max(1)))
+            .with_n_threads(thread_count)
+            .with_n_threads_batch(thread_count)
+            .with_embeddings(true);
+        let mut context = model.new_context(&self.backend, ctx_params)?;
+
+        let mut vectors = Vec::with_capacity(request.texts.len());
+        for text in &request.texts {
+            context.clear_kv_cache();
+
+            let tokens = model.str_to_token(text, AddBos::Always)?;
+            let mut batch = LlamaBatch::new(tokens.len().max(1), 1);
+            // Every position needs output enabled, not just the last —
+            // mean pooling (this model's default) needs every token's
+            // hidden state, unlike causal generation which only needs
+            // the last position's logits.
+            for (i, token) in tokens.iter().enumerate() {
+                batch.add(*token, i32::try_from(i).unwrap_or(i32::MAX), &[0], true)?;
+            }
+            context.decode(&mut batch)?;
+
+            let embedding = context.embeddings_seq_ith(0)?;
+            vectors.push(embedding.to_vec());
+        }
+
+        Ok(vectors)
+    }
 }
 
 /// Builds a sampler chain from [`InferenceParams`]. A `temperature` of
@@ -232,7 +320,8 @@ mod tests {
     #[test]
     fn worker_lifecycle_without_a_loaded_model() {
         let worker = Worker::new().expect("backend init should succeed in test environment");
-        assert!(!worker.is_loaded());
+        assert!(!worker.is_loaded(ModelSlot::Generation));
+        assert!(!worker.is_loaded(ModelSlot::Embedding));
         assert!(worker.uptime().as_secs() < 5);
 
         let request = GenerateRequest {
@@ -241,6 +330,13 @@ mod tests {
         };
         let result = worker.generate(&request, 512, 1, |_| true);
         assert!(matches!(result, Err(WorkerRuntimeError::NotLoaded)));
+
+        let embed_request = EmbedRequest {
+            texts: vec!["hello".to_string()],
+            thread_count: 1,
+        };
+        let embed_result = worker.embed(&embed_request, 1);
+        assert!(matches!(embed_result, Err(WorkerRuntimeError::NotLoaded)));
     }
 
     #[test]

@@ -53,24 +53,55 @@ pub enum WorkerRuntimeError {
     /// The llama.cpp decode step itself failed.
     #[error("decode failed: {0}")]
     Decode(#[from] llama_cpp_2::DecodeError),
+
+    /// Reading a pooled embedding back out of the context failed after a
+    /// successful decode (embeddings disabled on the context, or the
+    /// model has no pooling configured).
+    #[error("failed to read embedding: {0}")]
+    Embeddings(#[from] llama_cpp_2::EmbeddingsError),
 }
 
 impl WorkerRuntimeError {
     /// Maps this error onto the wire-level [`WorkerError`] sent back to
-    /// the Runtime Manager. Per `SECURITY.md`, the message never
-    /// includes prompt or document content — only structural detail
-    /// (already true of every source error here, since llama.cpp's own
-    /// errors are about files/tokens/buffers, not user text).
+    /// the Runtime Manager, for an error raised during
+    /// [`crate::worker::Worker::generate`]. Per `SECURITY.md`, the
+    /// message never includes prompt or document content — only
+    /// structural detail (already true of every source error here, since
+    /// llama.cpp's own errors are about files/tokens/buffers, not user
+    /// text).
     #[must_use]
     pub fn to_wire_error(&self) -> WorkerError {
+        self.to_wire_error_with(WorkerErrorKind::GenerationFailed)
+    }
+
+    /// Maps this error onto the wire-level [`WorkerError`], for an error
+    /// raised during [`crate::worker::Worker::embed`]. Needed as a
+    /// separate method (rather than always defaulting to
+    /// `GenerationFailed`) because several variants here — tokenization,
+    /// context creation, decode — are shared by both `generate` and
+    /// `embed`, and the caller (this method) is the only place that
+    /// knows which operation was actually running when the error
+    /// occurred.
+    #[must_use]
+    pub fn to_wire_error_for_embedding(&self) -> WorkerError {
+        self.to_wire_error_with(WorkerErrorKind::EmbeddingFailed)
+    }
+
+    /// Shared mapping logic: variants with an unambiguous kind always map
+    /// to it regardless of caller; variants raised by more than one
+    /// operation (tokenize/context/decode/batch-add) fall back to
+    /// `ambiguous_kind`, supplied by the caller that knows which
+    /// operation was in progress.
+    fn to_wire_error_with(&self, ambiguous_kind: WorkerErrorKind) -> WorkerError {
         let kind = match self {
             Self::NotLoaded => WorkerErrorKind::NotLoaded,
             Self::ModelFileNotFound(_) | Self::ModelLoad(_) => WorkerErrorKind::ModelLoadFailed,
+            Self::Embeddings(_) => WorkerErrorKind::EmbeddingFailed,
             Self::ContextLoad(_)
             | Self::Tokenize(_)
             | Self::Detokenize(_)
             | Self::BatchAdd(_)
-            | Self::Decode(_) => WorkerErrorKind::GenerationFailed,
+            | Self::Decode(_) => ambiguous_kind,
         };
         WorkerError {
             kind,
