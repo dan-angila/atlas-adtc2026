@@ -1,6 +1,8 @@
 # ADR-0002: Rust as the primary systems language for the core engine
 
-Status: Accepted
+Status: Accepted (CPU-ISA dispatch open item closed by
+[ADR-0013](0013-cpu-isa-build-dispatch-strategy.md) — the language choice
+itself is unchanged)
 Date: 2026-08-04
 
 ## Context
