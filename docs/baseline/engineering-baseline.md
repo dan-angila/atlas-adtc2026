@@ -14,11 +14,12 @@ architecture below is unaffected and remains fully domain-agnostic.
 ## What exists today
 
 - **Code:** the Atlas Runtime is real and validated end-to-end against a
-  live model. Document Ingestion now has a real `DocumentParser` adapter
-  for all four target formats (Markdown, CSV, DOCX, PDF); chunking is
-  still a placeholder-tuned thin slice, and Knowledge Retrieval,
-  Conversation & Session, and Reporting & Authoring remain out of scope
-  until Phase 3+.
+  live model, now with a dedicated embedding-model slot alongside
+  generation. Document Ingestion has a real `DocumentParser` adapter for
+  all four target formats (Markdown, CSV, DOCX, PDF); chunking is still a
+  placeholder-tuned thin slice. Knowledge Retrieval now has real content
+  too — see below. Conversation & Session and Reporting & Authoring
+  remain out of scope until later phases.
   - `crates/atlas-domain` — pure domain types: `Id<T>`, `ModelFamily`,
     `Quantization`, `ModelDescriptor`, `LanguageCode`,
     `LanguageDescriptor`, `RamTier`, `RuntimeStatus`, `InferenceParams`,
@@ -26,43 +27,56 @@ architecture below is unaffected and remains fully domain-agnostic.
   - `crates/atlas-config` — local, offline configuration loading.
   - `crates/atlas-logging` — local-only structured logging (`tracing`).
   - `crates/atlas-ipc` — the wire protocol between the main process and
-    the inference worker (ADR-0010), Unix domain sockets only.
+    the inference worker (ADR-0010), Unix domain sockets only. Protocol
+    version 2: the worker now holds two independent model slots
+    (Generation, Embedding) instead of one, per ADR-0006's requirement
+    that the embedding model stay resident alongside generation.
   - `crates/atlas-engine` — `inference` is the **Atlas Runtime**: Runtime
     Manager, Model Registry, GGUF Inspector (pure-Rust binary parser),
-    Model Validation (now wired into `RuntimeManager::load_model` as a
+    Model Validation (wired into `RuntimeManager::load_model` as a
     pre-flight check), Memory Manager (RAM-tier selection), Thread
     Scheduler, Context Manager, Streaming Engine, Language Registry (24
     languages), Offline Policy Engine, Benchmark Engine, Metrics
-    Collector, Error Recovery. See
+    Collector, Error Recovery, and now embedding generation
+    (`InferenceEngine::embed`). See
     `docs/architecture/runtime-architecture.md` for the full design.
     `ingestion` has a real `DocumentParser` port with Markdown, CSV,
     DOCX, and PDF adapters (PDF via the pure-Rust `pdf-extract` crate,
-    text-layer only, no OCR), plus a placeholder-tuned chunker
-    (`docs/design/rag-pipeline.md`'s thin vertical slice) — see
-    `crates/atlas-engine/src/ingestion/`. `retrieval`, `conversation`,
-    and `reporting` remain documented stubs.
+    text-layer only, no OCR), plus a placeholder-tuned chunker — see
+    `crates/atlas-engine/src/ingestion/`. `retrieval` has a real
+    `KnowledgeRepository` port with two adapters: `SqliteKnowledgeRepository`
+    (SQLite + `sqlite-vec` + FTS5, ADR-0004, real hybrid search via
+    Reciprocal Rank Fusion) and `InMemoryKnowledgeRepository` (zero-I/O
+    test double) — see `crates/atlas-engine/src/retrieval/`.
+    `conversation` and `reporting` remain documented stubs.
   - `crates/atlas-inference-worker` — the isolated llama.cpp FFI adapter
-    (ADR-0010), a separate OS process, using `llama-cpp-2`. The one crate
-    permitted `unsafe_code` — though it turned out to need zero literal
-    `unsafe` blocks of its own.
+    (ADR-0010), a separate OS process, using `llama-cpp-2`. Needs zero
+    literal `unsafe` blocks of its own (the FFI is fully wrapped by
+    `llama-cpp-2`'s safe API).
   - `crates/atlas-app` — the Tauri composition root; wires config and
     logging, exposes one command (`get_app_info`). **Not yet** wired to
     the Runtime — see "Known open items."
   - `ui/` — React + TypeScript + Vite front end calling `get_app_info`
     end to end.
-  - 148 tests + 1 doc-test passing across the workspace (`cargo test`,
+  - 171 tests + 1 doc-test passing across the workspace (`cargo test`,
     excluding `atlas-app` which can't build in this sandbox — see below),
-    including real spawned-worker integration tests and a real-model
-    validation example (`crates/atlas-engine/examples/validate_runtime.rs`).
+    including real spawned-worker integration tests, real SQLite +
+    `sqlite-vec` + FTS5 integration tests, and real-model validation
+    examples (`crates/atlas-engine/examples/validate_runtime.rs`,
+    `validate_embeddings.rs`, `validate_ingestion_pipeline.rs`).
 - **Architecture:** baselined and extended. See
   `docs/architecture/overview.md` and
   `docs/architecture/runtime-architecture.md`.
-- **Foundational decisions:** recorded as ADR-0001 through ADR-0013 in
+- **Foundational decisions:** recorded as ADR-0001 through ADR-0015 in
   `docs/adr/`, covering deployment topology, primary language, inference
   engine, storage, architecture style, crate/module packaging,
   RAM/quantization strategy, desktop shell, license, inference process
-  isolation, RAM-tiering constraints, model-licensing, and CPU-ISA
-  dispatch strategy.
+  isolation, RAM-tiering constraints, model-licensing, CPU-ISA dispatch
+  strategy, the healthcare vertical pivot, and a second, narrowly-scoped
+  `unsafe_code` exception for `sqlite-vec` registration.
+  `unsafe_code` policy is now `deny` (not `forbid`) in `atlas-engine`
+  specifically so that one function can carry a local
+  `#[allow(unsafe_code)]` — see ADR-0015.
 - **Independent review:** a full architecture review exists at
   `docs/execution/architecture-review-2026-08-04.md`. Its process-
   isolation finding is now resolved (ADR-0010); its CPU-ISA finding
@@ -111,18 +125,33 @@ architecture below is unaffected and remains fully domain-agnostic.
   something this baseline should silently pick a side on. Still
   outstanding from the original open item: Ubuntu 22.04 (still Kali) and
   a larger sample size.
+- **Retrieval quality is not yet benchmarked** —
+  [`docs/benchmarks/2026-08-07-retrieval-latency.md`](../benchmarks/2026-08-07-retrieval-latency.md)
+  measures real embed/store/query latency (200 synthetic chunks) but
+  explicitly does not measure whether hybrid search returns the *right*
+  chunks at real corpus scale — that needs a real document corpus with
+  known-relevant answers, which doesn't exist yet.
+- **Embedding throughput is the dominant ingest-time cost** (~42
+  ms/chunk on reference hardware, release build) — the current
+  `Worker::embed` design clears the KV cache and re-decodes per text
+  rather than batching multiple sequences in one context. A deliberate
+  simplicity choice, now with a real number to motivate revisiting it —
+  see the retrieval-latency report's "Not yet done."
 
 ## What's next
 
 Per `docs/roadmap/development-roadmap.md`, Phase 1's Runtime work is
-complete; `Document`/`Chunk` domain types are modeled and Phase 2's
-format-coverage item is done (Markdown/CSV/DOCX/PDF parsing, all four
-target formats). What remains: wiring `atlas-app` to the Runtime
-(blocked on system libraries, not architecture), validating the PDF
-adapter against real WHO/MoH-style samples rather than only hand-built
-fixtures, ingestion crash-safety (fault-injection tests), and a real
-(benchmarked, not placeholder) chunking strategy once Phase 3 gives it
-something to measure against. See
+complete; Phase 2's format-coverage item is done (Markdown/CSV/DOCX/PDF
+parsing, all four target formats); Phase 3's core Knowledge Retrieval
+layer is done (storage, embeddings, hybrid search, all proven end to end
+against real components). What remains: wiring `atlas-app` to the
+Runtime (blocked on system libraries, not architecture); validating the
+PDF adapter and the retrieval layer against a real document corpus
+rather than only hand-built/synthetic fixtures; ingestion crash-safety
+(fault-injection tests); a real (benchmarked, not placeholder) chunking
+strategy, now that Phase 3 gives it something to measure against; and
+embedding-throughput optimization once a real corpus makes the current
+~42 ms/chunk figure a real bottleneck rather than a theoretical one. See
 `docs/architecture/runtime-architecture.md` §7 for the full remaining
 Runtime-specific roadmap.
 

@@ -1,13 +1,17 @@
 # RAG Pipeline Design
 
-Status: Design specification, partially implemented (§2's four
+Status: Design specification, mostly implemented (§2's four
 `DocumentParser` adapters — Markdown, CSV, DOCX, PDF — are all real,
 closing Phase 2's format-coverage item; §3's chunker has a real,
 deliberately minimal thin vertical slice — `crates/atlas-engine/src/
 ingestion/` — with placeholder, not benchmarked, chunk-size constants;
-§4 onward — embeddings, storage, retrieval, citations — remain
-pre-implementation. See `docs/roadmap/development-roadmap.md`, Phases
-2–3)
+§4–6 — embeddings, storage, hybrid retrieval — are real and proven end
+to end, closing Phase 3's core layer, with one disclosed gap (§4's
+embedding model has not been validated against this project's 24-
+language commitment) and one deferred item (retrieval-quality
+benchmarking needs a real document corpus that doesn't exist yet); §7–8
+— context assembly, citations — remain pre-implementation. See
+`docs/roadmap/development-roadmap.md`, Phases 3–4)
 Written: 2026-08-04
 
 This is a pre-implementation design specification, broader than a normal
@@ -111,43 +115,50 @@ answer this section still defers to `/research`.
 
 ## 4. Embeddings
 
-**Model:** a small (≤150M parameter) dedicated embedding model, per
-ADR-0006's explicit RAM budgeting ("kept resident alongside the
-generation model... budgeted separately and is non-negotiable, since
-retrieval quality depends on it being always available"). Specific model
-selection is a `/research` task, not decided in this document — candidate
-evaluation criteria: embedding dimension (smaller = less storage and
-faster search, per §5), multilingual coverage (this project's Language
-Registry already commits to 24 languages — the embedding model must
-cover them credibly, which rules out English-only models regardless of
-their English-language benchmark scores).
+**Implemented**, with one known, undisclosed-no-longer gap against this
+section's own original criteria — see below.
+
+**Model:** `nomic-ai/nomic-embed-text-v1.5-GGUF` (official org repo,
+Apache-2.0, Q8_0, 768-dim, 137M params, ≈161.66 MiB real measured
+working set) — chosen and verified for size (ADR-0006's ≤150M/~300MB
+budget), license (ADR-0012), and confirmed `nomic-bert` architecture
+support in the vendored llama.cpp. **Not verified against this section's
+original multilingual-coverage criterion**: this project's Language
+Registry commits to 24 languages, and this document originally said the
+embedding model "must cover them credibly, which rules out English-only
+models" — `nomic-embed-text-v1.5` is primarily an English-trained model,
+and its quality on the other 23 registered languages has not been
+measured. This is a real, open gap, not a silently-dropped requirement —
+see `docs/roadmap/development-roadmap.md`'s multilingual-validation item.
 
 **Where embeddings run:** through the same isolated worker process
-architecture as generation (ADR-0010) — not a second, separate FFI
-surface. The worker's `WorkerRequest` enum gains an `Embed` variant
-(prompt in, vector out) alongside `LoadModel`/`Generate`, reusing the
-existing IPC transport (`atlas-ipc`) rather than inventing a parallel
-one. This keeps the "one process touches llama.cpp" invariant
-module-boundaries.md rule 7 already establishes.
+architecture as generation (ADR-0010), exactly as planned — not a second,
+separate FFI surface. The worker holds two independent model slots
+(`ModelSlot::Generation`, `ModelSlot::Embedding`; wire protocol version
+2) rather than one replaced-on-load slot, since both models must be
+resident simultaneously. `WorkerRequest::Embed` takes a batch of texts,
+not one prompt at a time — see
+`crates/atlas-engine/src/inference/runtime_manager.rs` and
+`crates/atlas-inference-worker/src/worker.rs`.
 
-**Batch vs. interactive:** ingestion-time embedding (potentially
-thousands of chunks for a large document) is a batch, background
-operation — must not block the UI (see the UX specification's "no
-blocking operations" principle) and must be interruptible/resumable
-given documents can be large relative to the 8GB envelope's disk-I/O
-budget.
+**Batch vs. interactive:** ingestion-time batching is implemented (one
+`Embed` request embeds many chunks); **not yet implemented**: making that
+batch non-blocking/interruptible from the UI's perspective — that's
+`atlas-app` composition-root work, blocked on the same missing Tauri
+system libraries as the rest of that wiring.
 
 ## 5. Storage and indexing
 
+**Implemented** — `crates/atlas-engine/src/retrieval/sqlite_store.rs`.
 Per ADR-0004: SQLite + `sqlite-vec` + FTS5, one knowledge-base file.
-Schema sketch (illustrative, not final — real schema is an implementation
-task):
+Real schema (the sketch below was illustrative; this is what actually
+exists):
 
 ```text
-documents(id, title, source_path, format, ingested_at, checksum)
-chunks(id, document_id, text, token_count, section_metadata, offset_range)
-chunk_embeddings(chunk_id, vector)          -- sqlite-vec virtual table
-chunks_fts(chunk_id, text)                  -- FTS5 virtual table
+documents(rowid, document_id, title, source_path, format, checksum)
+chunks(rowid, chunk_id, document_id, text, heading_path, start_byte, end_byte)
+chunks_fts USING fts5(text, content='chunks', content_rowid='rowid')   -- kept in sync via triggers
+chunk_embeddings USING vec0(embedding float[N] distance_metric=cosine) -- N is a runtime parameter, not hardcoded
 ```
 
 `checksum` on `documents` reuses the same SHA-256 approach
@@ -158,22 +169,34 @@ the same hashing pattern is cheaper than inventing a second one.
 
 ## 6. Hybrid retrieval
 
-Both retrieval paths run for every query, results merged:
+**Implemented** — `crates/atlas-engine/src/retrieval/sqlite_store.rs` and
+`fusion.rs`. Both retrieval paths run for every query, results merged:
 
 - **Semantic (vector) search** via `sqlite-vec`: embed the query with the
-  same model used for chunks, k-nearest-neighbor search.
+  same model used for chunks, `vec0`'s documented `MATCH ... AND k = N`
+  KNN query form.
 - **Lexical (keyword) search** via FTS5: catches exact terms (product
   codes, proper nouns, acronyms) that embedding similarity alone can miss
   or under-rank — a known weakness of pure vector search for enterprise
   document search specifically (internal terminology rarely resembles
-  the embedding model's training distribution well).
-- **Fusion:** merge and re-rank the two result sets (a documented,
-  tunable strategy — e.g. reciprocal rank fusion — is a `/research`
-  decision, not fixed here) into a single ranked chunk list.
+  the embedding model's training distribution well). Query text is
+  quoted per-word and OR-combined before hitting FTS5, so free text
+  (including FTS5 syntax characters) can't be misread as query operators
+  or error out.
+- **Fusion:** Reciprocal Rank Fusion (`crates/atlas-engine/src/retrieval/fusion.rs`,
+  independently unit-tested, `k=60` — a documented, labeled-unbenchmarked
+  starting point per that constant's own doc comment) merges the two
+  ranked candidate lists into one.
 
 This is why ADR-0004 chose sqlite-vec over a vector-only store like
 FAISS: hybrid retrieval from one engine, one transaction model, one file
-— not two stores to keep consistent.
+— not two stores to keep consistent. Proven end to end against real
+components (not mocked) in
+`crates/atlas-engine/examples/validate_ingestion_pipeline.rs`; latency
+measured in
+[`docs/benchmarks/2026-08-07-retrieval-latency.md`](../benchmarks/2026-08-07-retrieval-latency.md)
+(retrieval *quality* at real corpus scale remains unmeasured — see that
+report).
 
 ## 7. Context assembly
 

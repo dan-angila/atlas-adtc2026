@@ -350,5 +350,21 @@ Runtime-specific remaining work, in priority order:
    thread-count override, RAM-tier override, default language) —
    `AppConfig` doesn't have these fields yet; adding them is
    straightforward once `atlas-app` is wired to the Runtime (item 1).
-7. Continue with Phase 2 (Document Ingestion) onward per the development
-   roadmap once the Runtime's remaining items above are closed out.
+7. **Dual-model-slot embedding support — done.** The worker now holds two
+   independent model slots (`ModelSlot::Generation`,
+   `ModelSlot::Embedding`; wire protocol bumped to version 2), with a new
+   `Embed`/`Embeddings` request pair and a matching
+   `InferenceEngine::embed` port method. Validated end to end against the
+   official `nomic-ai/nomic-embed-text-v1.5-GGUF` — see
+   `docs/benchmarks/2026-08-07-nomic-embed-text-v1.5-validation.md`.
+   **Follow-up, not yet done:** `Worker::embed` clears the KV cache and
+   re-decodes per text rather than batching multiple sequences in one
+   context — simple and correct, but the dominant ingest-time cost (~42
+   ms/chunk on reference hardware) per
+   `docs/benchmarks/2026-08-07-retrieval-latency.md`, which now gives this
+   a concrete number to optimize against.
+8. Phase 2 (Document Ingestion, all four formats) and Phase 3's core
+   Knowledge Retrieval layer (storage, embeddings, hybrid search) are
+   done — see the development roadmap. Continue with Phase 3's remaining
+   corpus-scale quality benchmark, then Phase 4 (RAG prompt assembly)
+   onward.

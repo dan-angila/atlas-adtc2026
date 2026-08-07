@@ -131,20 +131,48 @@ required to close this exit criterion.
 document set (assembled in `/research`) into normalized `Chunk`s with test
 coverage for malformed/edge-case inputs per format.
 
-## Phase 3 — Knowledge Retrieval
+## Phase 3 — Knowledge Retrieval *(core layer done; corpus-scale quality benchmark remains)*
 
-- [ ] `VectorStore`/`KnowledgeRepository` adapters over SQLite + sqlite-vec
-      + FTS5 (ADR-0004)
-- [ ] Embedding model integrated (ADR-0006's dedicated small embedding
-      model)
-- [ ] Hybrid (lexical + semantic) retrieval with a documented ranking/
-      fusion strategy
-- [ ] First `/benchmarks` retrieval-quality and latency report on
-      reference hardware
+- [x] `KnowledgeRepository` adapters over SQLite + `sqlite-vec` + FTS5
+      (ADR-0004) — real, tested
+      (`crates/atlas-engine/src/retrieval/sqlite_store.rs`), plus a
+      second, zero-I/O `InMemoryKnowledgeRepository` adapter for testing
+      higher-level code. Registering `sqlite-vec` needed a real `unsafe`
+      FFI call with no safe alternative anywhere in the ecosystem — see
+      [ADR-0015](../adr/0015-sqlite-vec-unsafe-ffi-scope.md), which
+      scopes a second, narrow `unsafe_code` exception to exactly that one
+      function.
+- [x] Embedding model integrated (ADR-0006's dedicated small embedding
+      model) — the official `nomic-ai/nomic-embed-text-v1.5-GGUF` Q8_0
+      (Apache-2.0, 768-dim, 137M params, ≈161.66 MiB real measured RAM),
+      run through the same Runtime the generation model uses, in its own
+      independent worker slot (see `runtime-architecture.md` §7's
+      dual-model-slot note). Validated end to end, including real
+      semantic-similarity correctness, in
+      `docs/benchmarks/2026-08-07-nomic-embed-text-v1.5-validation.md`.
+- [x] Hybrid (lexical + semantic) retrieval with a documented ranking/
+      fusion strategy — Reciprocal Rank Fusion
+      (`crates/atlas-engine/src/retrieval/fusion.rs`), independently
+      unit-tested with no storage backend involved, combining FTS5 BM25
+      candidates with `sqlite-vec` cosine-KNN candidates.
+- [x] First `/benchmarks` latency report on reference hardware —
+      [`docs/benchmarks/2026-08-07-retrieval-latency.md`](../benchmarks/2026-08-07-retrieval-latency.md).
+      **Not** a retrieval-*quality* benchmark: that needs a real document
+      corpus with known-relevant answers, which doesn't exist yet (see
+      that report's "Not yet done" — this is the item the exit criterion
+      below is not fully met by).
+- [x] Full pipeline proven end to end against real components (no mocks):
+      `crates/atlas-engine/examples/validate_ingestion_pipeline.rs`
+      parses and chunks a real document, embeds it through a real
+      spawned worker, stores it in a real SQLite knowledge base, and
+      correctly ranks the right section first for a real query.
 
 **Exit criteria:** retrieval quality and latency are *measured*, not
 assumed — a benchmark report exists and is checked into `/benchmarks`
-with methodology documented per `docs/benchmarks/README.md`.
+with methodology documented per `docs/benchmarks/README.md`. **Partially
+met**: latency is measured; quality is not yet, pending a real document
+corpus and relevance judgments (see the "Not yet done" section of the
+latency report).
 
 ## Phase 4 — Inference, Generation & RAM Tiering
 
