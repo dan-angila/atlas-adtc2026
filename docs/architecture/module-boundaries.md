@@ -5,9 +5,11 @@ concrete workspace/crate layout and the rules that keep the boundaries
 real once code exists. It is the enforcement mechanism behind
 [ADR-0005](../adr/0005-clean-hexagonal-architecture-ddd.md), with its
 packaging granularity as amended by
-[ADR-0009](../adr/0009-crate-packaging-module-boundaries.md) and its
+[ADR-0009](../adr/0009-crate-packaging-module-boundaries.md), its
 inference-isolation topology as amended by
-[ADR-0010](../adr/0010-inference-worker-process-isolation.md).
+[ADR-0010](../adr/0010-inference-worker-process-isolation.md), and rule 7's
+`unsafe_code` scope as amended by
+[ADR-0015](../adr/0015-sqlite-vec-unsafe-ffi-scope.md).
 
 ## Workspace layout
 
@@ -107,14 +109,20 @@ of exception, scoped narrowly to the wire protocol ADR-0010 introduces.
    "just in case" is the premature abstraction ADR-0009 was written to
    avoid; don't reintroduce it piecemeal.
 
-7. **`unsafe_code` is forbidden workspace-wide except in
-   `atlas-inference-worker`.** Every other crate sets
-   `unsafe_code = "forbid"` via the workspace lint table (`Cargo.toml`).
-   `atlas-inference-worker` is the one, explicitly reviewed exception —
-   its FFI boundary to llama.cpp is exactly the "explicitly reviewed FFI
-   boundary module" `docs/engineering-standards.md` describes, and
-   ADR-0010 exists specifically to contain the blast radius of that
-   exception to its own OS process.
+7. **`unsafe_code` is forbidden workspace-wide except in two, explicitly
+   reviewed places.** Every other crate — and every other function in the
+   two exceptions' own crates — sets `unsafe_code = "forbid"` via the
+   workspace lint table (`Cargo.toml`). The two exceptions:
+   - `atlas-inference-worker`, in full: its FFI boundary to llama.cpp is
+     exactly the "explicitly reviewed FFI boundary module"
+     `docs/engineering-standards.md` describes, and ADR-0010 exists
+     specifically to contain the blast radius of that exception to its
+     own OS process.
+   - **One function** in `atlas-engine`'s Knowledge Retrieval adapter,
+     which registers the `sqlite-vec` extension (ADR-0004) — see
+     [ADR-0015](../adr/0015-sqlite-vec-unsafe-ffi-scope.md) for why no
+     safe alternative exists and why this is scoped to a single function
+     rather than the whole crate.
 
 ## Why write this down before any code exists
 

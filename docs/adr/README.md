@@ -44,6 +44,7 @@ an issue, don't silently pick a winner.
 | [0012](0012-model-licensing-compatibility.md) | Model-licensing compatibility constraint for recommended and default models | Accepted |
 | [0013](0013-cpu-isa-build-dispatch-strategy.md) | CPU instruction-set dispatch strategy | Accepted |
 | [0014](0014-healthcare-vertical-pivot.md) | Healthcare vertical pivot for the ADTC 2026 submission | Accepted |
+| [0015](0015-sqlite-vec-unsafe-ffi-scope.md) | A second, narrowly-scoped `unsafe_code` exception for sqlite-vec registration (amends module-boundaries.md rule 7) | Accepted |
 
 ## Template
 

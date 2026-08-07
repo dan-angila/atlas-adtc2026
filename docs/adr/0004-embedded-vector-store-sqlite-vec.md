@@ -1,6 +1,9 @@
 # ADR-0004: SQLite + sqlite-vec as the embedded knowledge store
 
-Status: Accepted
+Status: Accepted (its unavoidable `unsafe` FFI consequence for extension
+registration, and the module-boundary exception that requires, are
+addressed by [ADR-0015](0015-sqlite-vec-unsafe-ffi-scope.md) — the storage
+technology decision itself is unchanged)
 Date: 2026-08-04
 
 ## Context
