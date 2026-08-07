@@ -13,11 +13,25 @@ or to prevent a mistake that's cheap to avoid and expensive to unwind.
 
 ## What BRIX Atlas is
 
-An offline-first Enterprise Intelligence Platform: chat with enterprise
-documents (PDF, DOCX, Markdown, CSV), hybrid search over a private
-knowledge base, meeting summarization, professional business writing,
-structured report generation — via Retrieval-Augmented Generation, running
-entirely on commodity hardware with **zero network dependency**.
+An offline-first healthcare reference intelligence assistant: chat with
+locally-loaded clinical/health-reference documents (PDF, DOCX, Markdown,
+CSV — treatment guidelines, drug formularies, health protocols), hybrid
+search over a private knowledge base, meeting summarization, professional
+business writing, structured report generation — via Retrieval-Augmented
+Generation, running entirely on commodity hardware with **zero network
+dependency**. See [ADR-0014](docs/adr/0014-healthcare-vertical-pivot.md)
+for why: the underlying Document Ingestion / Knowledge Retrieval /
+Inference architecture remains fully domain-agnostic (no
+healthcare-specific bounded context, port, or format exists or should be
+added) — the pivot lives in knowledge-base content, UX/disclaimer
+framing, and which safety properties are prioritized, not in the engine.
+
+**This is not a medical device.** BRIX Atlas does not diagnose, triage,
+or recommend treatment on its own authority — it retrieves and
+summarizes content from documents a user's organization has deliberately
+loaded, and every generated claim must be traceable to a specific loaded
+source. Never write or accept code, UX copy, or documentation that
+implies clinical authority the system does not have.
 
 This is the official Africa Deep Tech Challenge 2026 implementation, and
 it is explicitly engineered as long-term open-source infrastructure, not a

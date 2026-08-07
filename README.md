@@ -1,10 +1,19 @@
 # BRIX Atlas
 
-**An offline-first Enterprise Intelligence Platform that runs powerful AI
-entirely on commodity hardware — no cloud, no network, no compromise on
-privacy.**
+**An offline-first healthcare reference intelligence assistant that runs
+powerful AI entirely on commodity hardware — no cloud, no network, no
+compromise on privacy.**
 
 Official implementation for the **Africa Deep Tech Challenge 2026**.
+
+BRIX Atlas is **not a medical device** and does not diagnose, triage, or
+recommend treatment on its own authority. It answers questions grounded
+in clinical/health-reference documents an organization has deliberately
+loaded — every answer is traceable back to a specific loaded source. See
+[ADR-0014](docs/adr/0014-healthcare-vertical-pivot.md) for the reasoning
+behind this vertical, and [SECURITY.md](SECURITY.md) for the full safety
+posture. The underlying engine itself remains domain-agnostic — a
+clinical guideline PDF is parsed exactly like any other PDF.
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Status: Foundation](https://img.shields.io/badge/status-engineering%20foundation-orange)](docs/baseline/engineering-baseline.md)
@@ -25,24 +34,32 @@ the wider BRIX ecosystem.
 ## Why this exists
 
 Most "run AI locally" products quietly assume a GPU, or 32GB+ of RAM, or a
-connection to the internet for at least the heavy lifting. Large parts of
-the world — and large parts of the enterprise landscape even in
-well-connected regions — don't reliably have any of those. BRIX Atlas is
-built for that reality: **Ubuntu 22.04, an Intel Core i5 (10th–12th Gen)
-or AMD Ryzen 5, 8GB of RAM, integrated graphics only, and zero network
-connectivity required, ever.**
+connection to the internet for at least the heavy lifting. A clinic or
+health facility with unreliable or no connectivity — common across large
+parts of the world — can't rely on any of those, yet that is exactly
+where fast, trustworthy access to treatment guidelines and drug
+formularies matters most. BRIX Atlas is built for that reality:
+**Ubuntu 22.04, an Intel Core i5 (10th–12th Gen) or AMD Ryzen 5, 8GB of
+RAM, integrated graphics only, and zero network connectivity required,
+ever.**
 
-Within that envelope, the platform lets an enterprise user:
+Within that envelope, the platform lets a clinician, pharmacist, or
+community health worker:
 
-- Chat with their documents — PDF, DOCX, Markdown, CSV
-- Search a private knowledge base with hybrid (lexical + semantic)
-  retrieval
+- Chat with locally-loaded clinical reference documents — PDF, DOCX,
+  Markdown, CSV
+- Search a private knowledge base of guidelines and formularies with
+  hybrid (lexical + semantic) retrieval
 - Summarize meetings and produce professional business writing
 - Generate structured reports
-- Retrieve grounded, citable answers via Retrieval-Augmented Generation
+- Retrieve grounded, **citable** answers via Retrieval-Augmented
+  Generation — every claim traces back to a specific loaded source
 
 Every one of those runs on-device. Privacy isn't a setting — it's the
-architecture.
+architecture. The document/RAG pipeline itself is domain-agnostic (see
+[ADR-0014](docs/adr/0014-healthcare-vertical-pivot.md)); healthcare is
+this submission's chosen knowledge base and safety focus, not a hardcoded
+capability.
 
 ## Current status
 
@@ -85,6 +102,10 @@ individual decisions in [`docs/adr/`](docs/adr/):
 | [0008](docs/adr/0008-apache-2.0-license.md) | Apache 2.0 license |
 | [0009](docs/adr/0009-crate-packaging-module-boundaries.md) | Bounded contexts packaged as modules within one crate, not five separate crates |
 | [0010](docs/adr/0010-inference-worker-process-isolation.md) | The llama.cpp FFI adapter runs in a supervised child process, not in-process |
+| [0011](docs/adr/0011-ram-tiering-constraints-amendment.md) | RAM-tiering constraints amendment — GQA, KV-cache quantization, concrete context length |
+| [0012](docs/adr/0012-model-licensing-compatibility.md) | Model-licensing compatibility constraint for recommended and default models |
+| [0013](docs/adr/0013-cpu-isa-build-dispatch-strategy.md) | CPU instruction-set dispatch strategy |
+| [0014](docs/adr/0014-healthcare-vertical-pivot.md) | Healthcare vertical pivot for the ADTC 2026 submission |
 
 ## Repository structure
 
