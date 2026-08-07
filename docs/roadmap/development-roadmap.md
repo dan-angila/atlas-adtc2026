@@ -58,8 +58,11 @@ Stand up the Rust workspace and prove the hexagonal boundaries from
       generated a real, correct completion end-to-end through the full
       domain → port → IPC → FFI → llama.cpp path — see
       `docs/benchmarks/2026-08-04-qwen2.5-0.5b-validation.md`
-- [ ] Domain types for `Document`, `Chunk`, `KnowledgeBase` (ADR-0005) —
-      still pending; scoped to Phase 2 (Document Ingestion), not blocking
+- [x] Domain types for `Document`, `Chunk` (ADR-0005) —
+      `atlas_domain::{DocumentRecord, ChunkRecord}`, real and tested.
+      `KnowledgeBase` remains deliberately deferred: it has no concrete
+      shape independent of the Phase 3 storage adapter (ADR-0004) that
+      will give it one.
 - [ ] Wire `atlas-app` (Tauri composition root) to the Runtime — blocked
       on this sandbox's missing Tauri Linux system libraries
       (`pkg-config`, `libwebkit2gtk-4.1-dev`), unrelated to the Runtime
@@ -77,14 +80,21 @@ adapter, provably (a deliberately-broken boundary fails CI). **Met** via
 work (`atlas-app` wiring, `Document`/`Chunk` types) is additive, not
 required to close this exit criterion.
 
-## Phase 2 — Document Ingestion
+## Phase 2 — Document Ingestion *(started: thin vertical slice)*
 
-- [ ] `DocumentParser` adapters: Markdown, CSV, DOCX, PDF (roughly
-      increasing order of parsing difficulty — ship the easy formats first
-      to unblock retrieval work)
+- [x] `DocumentParser` port + Markdown adapter — real, tested
+      (`crates/atlas-engine/src/ingestion/`), per the independent
+      architecture review's recommendation to prove the pipeline
+      composes end to end on one easy format before building out all
+      four (`docs/execution/architecture-review-2026-08-04.md`).
+- [ ] `DocumentParser` adapters: CSV, DOCX, PDF — not started.
 - [ ] Chunking strategy defined and benchmarked (chunk size/overlap is a
       retrieval-quality lever, not an arbitrary constant — document the
-      choice in `/research`)
+      choice in `/research`). **Not done**: a chunker exists
+      (`crates/atlas-engine/src/ingestion/chunking.rs`) but its size/
+      overlap constants are explicit, labeled placeholders, not a
+      researched or benchmarked choice — real tuning needs a retrieval
+      pipeline (Phase 3) to measure against.
 - [ ] Ingestion is crash-safe (partial ingest cannot corrupt a knowledge
       base — exercised with fault-injection tests)
 

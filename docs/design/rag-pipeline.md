@@ -1,7 +1,10 @@
 # RAG Pipeline Design
 
-Status: Design specification — pre-implementation (Document Ingestion and
-Knowledge Retrieval bounded contexts are currently documented stubs; see
+Status: Design specification, partially implemented (§2's Markdown
+parser and §3's chunker have a real, deliberately minimal thin vertical
+slice — `crates/atlas-engine/src/ingestion/` — with placeholder, not
+benchmarked, chunk-size constants; §4 onward — embeddings, storage,
+retrieval, citations — remain pre-implementation. See
 `docs/roadmap/development-roadmap.md`, Phases 2–3)
 Written: 2026-08-04
 
@@ -57,7 +60,7 @@ real-world messy sample) before it's considered done.
 
 | Format | Approach | Key risk |
 |---|---|---|
-| Markdown | Direct text extraction, strip formatting for embedding but preserve structure (headings) as chunk metadata for citation context | Front-matter/embedded HTML edge cases |
+| Markdown | **Implemented** (`ingestion::markdown::MarkdownParser`): strips YAML front matter, decodes UTF-8 (lossy fallback), splits on ATX headings, preserving the full heading path as chunk metadata | Front-matter/embedded HTML edge cases — front matter is stripped; embedded HTML is passed through as plain text, not specially handled |
 | Plain text | Direct read, encoding detection (UTF-8 default, fall back to lossy conversion rather than failing the whole ingest) | Mixed/unknown encodings |
 | CSV | Row-oriented chunking (see §3) — each row or logical row-group becomes a chunk with column headers carried as metadata, not concatenated into the embedded text | Wide tables where a single row exceeds a reasonable chunk size |
 | DOCX | XML-based extraction (DOCX is a zip of XML parts) — paragraph and heading structure preserved as chunk metadata, same as Markdown | Embedded tables/images; images are not processed (no multimodal model in scope) |
@@ -77,6 +80,14 @@ chunk-size/overlap numbers need tuning against real documents in
 *strategy*, not the tuned constants — those get their own narrow design
 note per `docs/design/README.md`'s convention, backed by a `/benchmarks`
 retrieval-quality entry per the Definition of Done).
+
+**Implemented today** (`ingestion::chunking`): a paragraph-boundary
+chunker following the strategy below, with **explicitly placeholder**
+`PLACEHOLDER_TARGET_CHUNK_BYTES`/`PLACEHOLDER_OVERLAP_BYTES` constants —
+character-based, not tokenizer-based, and not tuned against any real
+corpus. It exists to prove the pipeline composes end to end (the
+architecture review's thin-vertical-slice goal), not as the tuned
+answer this section still defers to `/research`.
 
 **Strategy:** structure-aware chunking, not naive fixed-width splitting:
 

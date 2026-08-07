@@ -10,24 +10,30 @@ Last updated: 2026-08-04
 ## What exists today
 
 - **Code:** the Atlas Runtime is real and validated end-to-end against a
-  live model. No document ingestion, RAG, retrieval, or enterprise
-  workflow logic exists yet — that remains explicitly out of scope until
-  Phase 2+.
+  live model. Document Ingestion has a thin, deliberately minimal
+  vertical slice (Markdown only); Knowledge Retrieval, Conversation &
+  Session, and Reporting & Authoring remain out of scope until Phase 3+.
   - `crates/atlas-domain` — pure domain types: `Id<T>`, `ModelFamily`,
     `Quantization`, `ModelDescriptor`, `LanguageCode`,
-    `LanguageDescriptor`, `RamTier`, `RuntimeStatus`, `InferenceParams`.
+    `LanguageDescriptor`, `RamTier`, `RuntimeStatus`, `InferenceParams`,
+    `DocumentRecord`, `ChunkRecord`, `DocumentFormat`.
   - `crates/atlas-config` — local, offline configuration loading.
   - `crates/atlas-logging` — local-only structured logging (`tracing`).
   - `crates/atlas-ipc` — the wire protocol between the main process and
     the inference worker (ADR-0010), Unix domain sockets only.
   - `crates/atlas-engine` — `inference` is the **Atlas Runtime**: Runtime
     Manager, Model Registry, GGUF Inspector (pure-Rust binary parser),
-    Model Validation, Memory Manager (RAM-tier selection), Thread
+    Model Validation (now wired into `RuntimeManager::load_model` as a
+    pre-flight check), Memory Manager (RAM-tier selection), Thread
     Scheduler, Context Manager, Streaming Engine, Language Registry (24
     languages), Offline Policy Engine, Benchmark Engine, Metrics
     Collector, Error Recovery. See
-    `docs/architecture/runtime-architecture.md` for the full design. The
-    other four bounded contexts remain documented stubs.
+    `docs/architecture/runtime-architecture.md` for the full design.
+    `ingestion` has a real `DocumentParser` port and Markdown adapter
+    plus a placeholder-tuned chunker (`docs/design/rag-pipeline.md`'s
+    thin vertical slice) — see
+    `crates/atlas-engine/src/ingestion/`. `retrieval`, `conversation`,
+    and `reporting` remain documented stubs.
   - `crates/atlas-inference-worker` — the isolated llama.cpp FFI adapter
     (ADR-0010), a separate OS process, using `llama-cpp-2`. The one crate
     permitted `unsafe_code` — though it turned out to need zero literal
@@ -37,10 +43,10 @@ Last updated: 2026-08-04
     the Runtime — see "Known open items."
   - `ui/` — React + TypeScript + Vite front end calling `get_app_info`
     end to end.
-  - 103 tests passing across the workspace (`cargo test`, excluding
-    `atlas-app` which can't build in this sandbox — see below), including
-    real spawned-worker integration tests and a real-model validation
-    example (`crates/atlas-engine/examples/validate_runtime.rs`).
+  - 121 tests + 1 doc-test passing across the workspace (`cargo test`,
+    excluding `atlas-app` which can't build in this sandbox — see below),
+    including real spawned-worker integration tests and a real-model
+    validation example (`crates/atlas-engine/examples/validate_runtime.rs`).
 - **Architecture:** baselined and extended. See
   `docs/architecture/overview.md` and
   `docs/architecture/runtime-architecture.md`.
@@ -95,10 +101,12 @@ Last updated: 2026-08-04
 ## What's next
 
 Per `docs/roadmap/development-roadmap.md`, Phase 1's Runtime work is
-complete; what remains before Phase 1 fully closes is wiring `atlas-app`
-to the Runtime (blocked on system libraries, not architecture) and
-modeling `Document`/`Chunk`/`KnowledgeBase` domain types ahead of Phase 2
-(Document Ingestion). See
+complete; `Document`/`Chunk` domain types are modeled and Phase 2 has a
+real thin vertical slice (Markdown parsing + a placeholder-tuned
+chunker). What remains: wiring `atlas-app` to the Runtime (blocked on
+system libraries, not architecture), the CSV/DOCX/PDF parser adapters,
+and a real (benchmarked, not placeholder) chunking strategy once Phase 3
+gives it something to measure against. See
 `docs/architecture/runtime-architecture.md` §7 for the full remaining
 Runtime-specific roadmap.
 

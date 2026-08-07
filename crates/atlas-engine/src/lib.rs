@@ -4,11 +4,13 @@
 //! (`docs/adr/0009-crate-packaging-module-boundaries.md`).
 //!
 //! [`inference`] is the Atlas Runtime — see that module's documentation
-//! for the full component map. The other four bounded contexts
-//! ([`ingestion`], [`retrieval`], [`conversation`], [`reporting`])
-//! remain documented placeholders: no ingestion, retrieval, or
-//! enterprise-workflow logic exists yet, per the explicit scope of the
-//! Runtime bootstrap that built [`inference`] out
+//! for the full component map. [`ingestion`] has real, if deliberately
+//! minimal, content: a `DocumentParser` port and a Markdown adapter —
+//! the thin vertical slice the independent architecture review
+//! recommended (`docs/execution/architecture-review-2026-08-04.md`).
+//! The remaining three bounded contexts ([`retrieval`], [`conversation`],
+//! [`reporting`]) remain documented placeholders — no retrieval or
+//! enterprise-workflow logic exists yet
 //! (`docs/roadmap/development-roadmap.md`).
 //!
 //! **Boundary rule** (`docs/architecture/module-boundaries.md`, rule 3):
