@@ -1,6 +1,8 @@
 # ADR-0003: llama.cpp + GGUF as the local inference engine
 
-Status: Accepted
+Status: Accepted (model-licensing selection constraint for recommended/
+default models added by [ADR-0012](0012-model-licensing-compatibility.md)
+— the engine/format decision itself is unchanged)
 Date: 2026-08-04
 
 ## Context
