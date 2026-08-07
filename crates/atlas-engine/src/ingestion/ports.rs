@@ -36,6 +36,13 @@ pub enum ParseError {
     /// The input could not be interpreted as this format at all.
     #[error("failed to parse document: {0}")]
     Malformed(String),
+    /// The input is structurally valid but carries no extractable text
+    /// content — e.g. a scanned/image-only PDF with no text layer and
+    /// no OCR in scope (`docs/design/rag-pipeline.md` §2). Distinct from
+    /// [`ParseError::Malformed`] so a caller can give the user an
+    /// accurate message instead of "this file is corrupted."
+    #[error("document has no extractable text: {0}")]
+    NoExtractableText(String),
 }
 
 /// Parses raw source bytes for one document format into a

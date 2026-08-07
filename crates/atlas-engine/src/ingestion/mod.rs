@@ -10,10 +10,12 @@
 //! (Markdown, the easiest per `docs/design/rag-pipeline.md` §2) with a
 //! deliberately simple, clearly-labeled-as-provisional chunker, rather
 //! than building all four format adapters in full before anything can
-//! be tested end to end. CSV and DOCX are the named second/third
-//! implementations of [`ports::DocumentParser`] required by
-//! `docs/architecture/module-boundaries.md` rule 4; PDF is the fourth,
-//! on the roadmap (Phase 2), not yet built.
+//! be tested end to end. CSV, DOCX, and PDF are the named second,
+//! third, and fourth implementations of [`ports::DocumentParser`]
+//! required by `docs/architecture/module-boundaries.md` rule 4 — all
+//! four target formats now have a real adapter, closing Phase 2's
+//! format-coverage item (chunking tuning and crash-safety remain open,
+//! see the roadmap).
 
 /// Chunking: splits a [`ports::ParsedDocument`] into
 /// [`atlas_domain::ChunkRecord`]s.
@@ -28,6 +30,9 @@ pub mod docx;
 /// The Markdown `DocumentParser` adapter.
 pub mod markdown;
 
+/// The PDF `DocumentParser` adapter.
+pub mod pdf;
+
 /// The `DocumentParser` port and its supporting types.
 pub mod ports;
 
@@ -35,4 +40,5 @@ pub use chunking::chunk_document;
 pub use csv::CsvParser;
 pub use docx::DocxParser;
 pub use markdown::MarkdownParser;
+pub use pdf::PdfParser;
 pub use ports::{DocumentParser, ParseError, ParsedDocument, ParsedSection};

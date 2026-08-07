@@ -88,7 +88,7 @@ adapter, provably (a deliberately-broken boundary fails CI). **Met** via
 work (`atlas-app` wiring, `Document`/`Chunk` types) is additive, not
 required to close this exit criterion.
 
-## Phase 2 — Document Ingestion *(started: thin vertical slice)*
+## Phase 2 — Document Ingestion *(all four format adapters done; chunking/crash-safety remain)*
 
 - [x] `DocumentParser` port + Markdown adapter — real, tested
       (`crates/atlas-engine/src/ingestion/`), per the independent
@@ -108,10 +108,15 @@ required to close this exit criterion.
       the heading path, same model as the Markdown adapter; table-cell
       paragraphs are walked for text but table structure itself is not
       preserved (named risk, not solved here).
-- [ ] `DocumentParser` PDF adapter — not started. Highest-priority
-      remaining format for the healthcare vertical
-      ([ADR-0014](../adr/0014-healthcare-vertical-pivot.md)): most
-      WHO/MoH clinical guidelines ship as PDF.
+- [x] `DocumentParser` PDF adapter — real, tested
+      (`crates/atlas-engine/src/ingestion/pdf.rs`), using the pure-Rust
+      `pdf-extract` crate (text-layer only, no OCR — see
+      `docs/design/rag-pipeline.md` §2). Highest-priority format for the
+      healthcare vertical ([ADR-0014](../adr/0014-healthcare-vertical-pivot.md)):
+      most WHO/MoH clinical guidelines ship as PDF. **Not yet done**:
+      validated against a corpus of real WHO/MoH-style PDFs — only
+      hand-built fixtures so far, and text-layer quality is known to
+      vary wildly across real-world PDF producers.
 - [ ] Chunking strategy defined and benchmarked (chunk size/overlap is a
       retrieval-quality lever, not an arbitrary constant — document the
       choice in `/research`). **Not done**: a chunker exists

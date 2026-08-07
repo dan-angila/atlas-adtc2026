@@ -1,11 +1,13 @@
 # RAG Pipeline Design
 
-Status: Design specification, partially implemented (§2's Markdown
-parser and §3's chunker have a real, deliberately minimal thin vertical
-slice — `crates/atlas-engine/src/ingestion/` — with placeholder, not
-benchmarked, chunk-size constants; §4 onward — embeddings, storage,
-retrieval, citations — remain pre-implementation. See
-`docs/roadmap/development-roadmap.md`, Phases 2–3)
+Status: Design specification, partially implemented (§2's four
+`DocumentParser` adapters — Markdown, CSV, DOCX, PDF — are all real,
+closing Phase 2's format-coverage item; §3's chunker has a real,
+deliberately minimal thin vertical slice — `crates/atlas-engine/src/
+ingestion/` — with placeholder, not benchmarked, chunk-size constants;
+§4 onward — embeddings, storage, retrieval, citations — remain
+pre-implementation. See `docs/roadmap/development-roadmap.md`, Phases
+2–3)
 Written: 2026-08-04
 
 This is a pre-implementation design specification, broader than a normal
@@ -64,7 +66,7 @@ real-world messy sample) before it's considered done.
 | Plain text | Direct read, encoding detection (UTF-8 default, fall back to lossy conversion rather than failing the whole ingest) | Mixed/unknown encodings |
 | CSV | **Implemented** (`ingestion::csv::CsvParser`, using the `csv` crate for RFC 4180 quoting): each row becomes its own section — one row, one chunk, satisfying the row-oriented chunking goal without CSV-specific chunking logic — with `"header: value"` pairs per cell and `"row N"` as provenance | Wide tables where a single row exceeds a reasonable chunk size — handled by the chunker's existing "never split a single oversized unit" rule, not CSV-specific code |
 | DOCX | XML-based extraction (DOCX is a zip of XML parts) — paragraph and heading structure preserved as chunk metadata, same as Markdown | Embedded tables/images; images are not processed (no multimodal model in scope) |
-| PDF | Text-layer extraction only — **no OCR in scope**. A scanned/image-only PDF is detected (near-zero extractable text) and reported to the user as unsupported, not silently ingested as empty | Text-layer quality varies wildly across PDF producers; this is the parser most likely to need real-world tuning against messy samples |
+| PDF | **Implemented** (`ingestion::pdf::PdfParser`, using the pure-Rust `pdf-extract` crate): text-layer extraction only — **no OCR in scope**. Each page becomes its own section (`"page N"` provenance, same convention as CSV's `"row N"`, since PDF carries no semantic heading markup); a page with no extractable text is skipped, and a document with zero extractable pages is reported via `ParseError::NoExtractableText`, not silently ingested as empty. `lopdf` (the underlying parser) is known to panic rather than error on some malformed input, so the adapter wraps extraction in `catch_unwind` | Text-layer quality varies wildly across real-world PDF producers — this adapter is tested against hand-built fixtures (empty/garbage/truncated/blank-page/multi-page), not yet against a corpus of real WHO/MoH-style PDFs; that remains the real-world tuning risk |
 
 **Why no OCR:** OCR is a real, separate capability (its own model, its own
 RAM/CPU budget) that would compete with the 8GB envelope ADR-0006 is

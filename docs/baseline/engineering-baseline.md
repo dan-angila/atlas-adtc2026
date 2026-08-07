@@ -14,10 +14,11 @@ architecture below is unaffected and remains fully domain-agnostic.
 ## What exists today
 
 - **Code:** the Atlas Runtime is real and validated end-to-end against a
-  live model. Document Ingestion has a thin, deliberately minimal
-  vertical slice (Markdown, CSV, and DOCX; PDF remains); Knowledge
-  Retrieval, Conversation & Session, and Reporting & Authoring remain out
-  of scope until Phase 3+.
+  live model. Document Ingestion now has a real `DocumentParser` adapter
+  for all four target formats (Markdown, CSV, DOCX, PDF); chunking is
+  still a placeholder-tuned thin slice, and Knowledge Retrieval,
+  Conversation & Session, and Reporting & Authoring remain out of scope
+  until Phase 3+.
   - `crates/atlas-domain` — pure domain types: `Id<T>`, `ModelFamily`,
     `Quantization`, `ModelDescriptor`, `LanguageCode`,
     `LanguageDescriptor`, `RamTier`, `RuntimeStatus`, `InferenceParams`,
@@ -34,8 +35,9 @@ architecture below is unaffected and remains fully domain-agnostic.
     languages), Offline Policy Engine, Benchmark Engine, Metrics
     Collector, Error Recovery. See
     `docs/architecture/runtime-architecture.md` for the full design.
-    `ingestion` has a real `DocumentParser` port with Markdown, CSV, and
-    DOCX adapters, plus a placeholder-tuned chunker
+    `ingestion` has a real `DocumentParser` port with Markdown, CSV,
+    DOCX, and PDF adapters (PDF via the pure-Rust `pdf-extract` crate,
+    text-layer only, no OCR), plus a placeholder-tuned chunker
     (`docs/design/rag-pipeline.md`'s thin vertical slice) — see
     `crates/atlas-engine/src/ingestion/`. `retrieval`, `conversation`,
     and `reporting` remain documented stubs.
@@ -48,7 +50,7 @@ architecture below is unaffected and remains fully domain-agnostic.
     the Runtime — see "Known open items."
   - `ui/` — React + TypeScript + Vite front end calling `get_app_info`
     end to end.
-  - 142 tests + 1 doc-test passing across the workspace (`cargo test`,
+  - 148 tests + 1 doc-test passing across the workspace (`cargo test`,
     excluding `atlas-app` which can't build in this sandbox — see below),
     including real spawned-worker integration tests and a real-model
     validation example (`crates/atlas-engine/examples/validate_runtime.rs`).
@@ -113,13 +115,14 @@ architecture below is unaffected and remains fully domain-agnostic.
 ## What's next
 
 Per `docs/roadmap/development-roadmap.md`, Phase 1's Runtime work is
-complete; `Document`/`Chunk` domain types are modeled and Phase 2 has a
-real thin vertical slice (Markdown/CSV/DOCX parsing + a placeholder-tuned
-chunker). What remains: wiring `atlas-app` to the Runtime (blocked on
-system libraries, not architecture), the PDF parser adapter (the format
-most WHO/MoH clinical guidelines actually ship in — see ADR-0014), and a
-real (benchmarked, not placeholder) chunking strategy once Phase 3 gives
-it something to measure against. See
+complete; `Document`/`Chunk` domain types are modeled and Phase 2's
+format-coverage item is done (Markdown/CSV/DOCX/PDF parsing, all four
+target formats). What remains: wiring `atlas-app` to the Runtime
+(blocked on system libraries, not architecture), validating the PDF
+adapter against real WHO/MoH-style samples rather than only hand-built
+fixtures, ingestion crash-safety (fault-injection tests), and a real
+(benchmarked, not placeholder) chunking strategy once Phase 3 gives it
+something to measure against. See
 `docs/architecture/runtime-architecture.md` §7 for the full remaining
 Runtime-specific roadmap.
 

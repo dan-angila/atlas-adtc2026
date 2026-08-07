@@ -20,12 +20,14 @@ which don't belong to any single crate.
 ## Status
 
 Empty — but no longer for the original reason. Real application code and
-103 unit/integration tests now exist (see
+148 unit/integration tests now exist (see
 `docs/baseline/engineering-baseline.md`), all of them scoped to a single
 crate/module (unit) or a single adapter (integration), per the table
 above. This directory stays empty specifically because no *cross-context*
-flow exists yet to test — only the Inference & Generation bounded context
-has real logic today; Document Ingestion, Knowledge Retrieval,
-Conversation & Session, and Reporting & Authoring are still stubs. It
-will gain its first real content once a second bounded context exists to
-compose with the first (Phase 2, `docs/roadmap/development-roadmap.md`).
+flow exists yet to test — Inference & Generation and Document Ingestion
+both have real logic today, but nothing yet composes them: there is no
+Knowledge Retrieval context (Phase 3) to sit between "parse a document
+into chunks" and "assemble a prompt and generate an answer." It will
+gain its first real content once that composition exists — the natural
+first candidate is exactly the "ingest a document, retrieve against it,
+generate an answer, verify the citation trail" flow named above.
