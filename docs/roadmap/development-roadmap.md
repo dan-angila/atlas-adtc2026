@@ -87,7 +87,12 @@ required to close this exit criterion.
       architecture review's recommendation to prove the pipeline
       composes end to end on one easy format before building out all
       four (`docs/execution/architecture-review-2026-08-04.md`).
-- [ ] `DocumentParser` adapters: CSV, DOCX, PDF — not started.
+- [x] `DocumentParser` CSV adapter — real, tested
+      (`crates/atlas-engine/src/ingestion/csv.rs`), using the `csv`
+      crate (RFC 4180 quoting) rather than hand-rolled delimiter
+      splitting. Each row becomes its own chunk per this phase's exit
+      criterion, headers attached per cell.
+- [ ] `DocumentParser` adapters: DOCX, PDF — not started.
 - [ ] Chunking strategy defined and benchmarked (chunk size/overlap is a
       retrieval-quality lever, not an arbitrary constant — document the
       choice in `/research`). **Not done**: a chunker exists

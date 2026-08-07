@@ -29,9 +29,9 @@ Last updated: 2026-08-04
     languages), Offline Policy Engine, Benchmark Engine, Metrics
     Collector, Error Recovery. See
     `docs/architecture/runtime-architecture.md` for the full design.
-    `ingestion` has a real `DocumentParser` port and Markdown adapter
-    plus a placeholder-tuned chunker (`docs/design/rag-pipeline.md`'s
-    thin vertical slice) — see
+    `ingestion` has a real `DocumentParser` port with Markdown and CSV
+    adapters, plus a placeholder-tuned chunker
+    (`docs/design/rag-pipeline.md`'s thin vertical slice) — see
     `crates/atlas-engine/src/ingestion/`. `retrieval`, `conversation`,
     and `reporting` remain documented stubs.
   - `crates/atlas-inference-worker` — the isolated llama.cpp FFI adapter
@@ -43,7 +43,7 @@ Last updated: 2026-08-04
     the Runtime — see "Known open items."
   - `ui/` — React + TypeScript + Vite front end calling `get_app_info`
     end to end.
-  - 121 tests + 1 doc-test passing across the workspace (`cargo test`,
+  - 129 tests + 1 doc-test passing across the workspace (`cargo test`,
     excluding `atlas-app` which can't build in this sandbox — see below),
     including real spawned-worker integration tests and a real-model
     validation example (`crates/atlas-engine/examples/validate_runtime.rs`).

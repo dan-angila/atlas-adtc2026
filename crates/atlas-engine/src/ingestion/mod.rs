@@ -19,6 +19,9 @@
 /// [`atlas_domain::ChunkRecord`]s.
 pub mod chunking;
 
+/// The CSV `DocumentParser` adapter.
+pub mod csv;
+
 /// The Markdown `DocumentParser` adapter.
 pub mod markdown;
 
@@ -26,5 +29,6 @@ pub mod markdown;
 pub mod ports;
 
 pub use chunking::chunk_document;
+pub use csv::CsvParser;
 pub use markdown::MarkdownParser;
 pub use ports::{DocumentParser, ParseError, ParsedDocument, ParsedSection};

@@ -40,6 +40,7 @@ directories = "5"
 tempfile = "3"
 sysinfo = "0.39"
 sha2 = "0.11"
+csv = "1"
 
 # Workspace-wide lint policy. Every member crate opts in via `[lints]
 # workspace = true` — see docs/engineering-standards.md.
