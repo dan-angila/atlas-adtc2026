@@ -16,7 +16,7 @@
 use std::io::{Cursor, Read};
 
 use quick_xml::events::{BytesStart, Event};
-use quick_xml::Reader;
+use quick_xml::{Reader, XmlVersion};
 use zip::ZipArchive;
 
 use super::ports::{DocumentParser, ParseError, ParsedDocument, ParsedSection};
@@ -103,10 +103,41 @@ fn parse_document_xml(xml: &str) -> Result<ParsedDocument, ParseError> {
             }
             Event::Text(text) => {
                 if in_text_run {
-                    let decoded = text.unescape().map_err(|error| {
-                        ParseError::Malformed(format!("malformed DOCX text: {error}"))
+                    let decoded = text.decode().map_err(|error| {
+                        ParseError::Malformed(format!("malformed DOCX text encoding: {error}"))
                     })?;
                     paragraph_text.push_str(&decoded);
+                }
+            }
+            Event::GeneralRef(reference) => {
+                // quick-xml 0.41 splits `&entity;`/`&#NN;` out of the
+                // surrounding `Text` event into its own event, so this
+                // must be handled separately or DOCX text containing an
+                // XML entity (e.g. "Research &amp; Development") silently
+                // loses the entity.
+                if in_text_run {
+                    let resolved = reference.resolve_char_ref().map_err(|error| {
+                        ParseError::Malformed(format!(
+                            "malformed DOCX character reference: {error}"
+                        ))
+                    })?;
+                    match resolved {
+                        Some(character) => paragraph_text.push(character),
+                        None => {
+                            let name = reference.decode().map_err(|error| {
+                                ParseError::Malformed(format!(
+                                    "malformed DOCX entity reference encoding: {error}"
+                                ))
+                            })?;
+                            let entity = quick_xml::escape::resolve_predefined_entity(&name)
+                                .ok_or_else(|| {
+                                    ParseError::Malformed(format!(
+                                        "unknown DOCX XML entity: &{name};"
+                                    ))
+                                })?;
+                            paragraph_text.push_str(entity);
+                        }
+                    }
                 }
             }
             Event::End(e) => match e.local_name().as_ref() {
@@ -143,9 +174,12 @@ fn read_val_attr(e: &BytesStart) -> Result<Option<String>, ParseError> {
         let attr = attr
             .map_err(|error| ParseError::Malformed(format!("malformed DOCX attribute: {error}")))?;
         if attr.key.local_name().as_ref() == b"val" {
-            let value = attr.unescape_value().map_err(|error| {
-                ParseError::Malformed(format!("malformed DOCX attribute value: {error}"))
-            })?;
+            // DOCX's `word/document.xml` always declares `version="1.0"`.
+            let value = attr
+                .normalized_value(XmlVersion::Implicit1_0)
+                .map_err(|error| {
+                    ParseError::Malformed(format!("malformed DOCX attribute value: {error}"))
+                })?;
             return Ok(Some(value.into_owned()));
         }
     }
@@ -387,7 +421,7 @@ mod tests {
         let body = format!(
             r#"{heading}<w:tbl><w:tr><w:tc>{cell}</w:tc></w:tr></w:tbl>{tail}"#,
             heading = heading("Heading1", "Overview"),
-            cell = paragraph("Research &amp; Development"),
+            cell = paragraph("Research &amp; Development &#38; caf&#233;"),
             tail = paragraph("Closing remarks."),
         );
         let bytes = build_docx(&wrap_body(&body));
@@ -397,7 +431,9 @@ mod tests {
             .expect("a real-world messy sample must not error or panic");
         assert_eq!(parsed.sections.len(), 1);
         assert_eq!(parsed.sections[0].heading_path, vec!["Overview"]);
-        assert!(parsed.sections[0].text.contains("Research & Development"));
+        assert!(parsed.sections[0]
+            .text
+            .contains("Research & Development & café"));
         assert!(parsed.sections[0].text.contains("Closing remarks."));
     }
 
