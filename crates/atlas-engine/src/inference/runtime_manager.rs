@@ -236,6 +236,18 @@ fn connect_with_retry(socket_path: &Path) -> Result<UnixStream, InferenceEngineE
 
 impl InferenceEngine for RuntimeManager {
     fn load_model(&self, spec: LoadModelSpec) -> Result<LoadedModelInfo, InferenceEngineError> {
+        // Model Validation runs here, before the file ever crosses the
+        // process boundary — defense in depth alongside ADR-0010's
+        // process isolation, not a replacement for it (isolation still
+        // catches what validation can't: a structurally-valid-but-
+        // adversarial file, or a llama.cpp bug). See
+        // docs/architecture/runtime-architecture.md §7, item 5.
+        super::model_registry::validate_model_file(&spec.path).map_err(|error| {
+            InferenceEngineError::LoadFailed(format!(
+                "model file failed validation before reaching the worker: {error}"
+            ))
+        })?;
+
         let request = WorkerRequest::LoadModel(LoadModelRequest {
             path: spec.path,
             context_length: spec.context_length,
@@ -436,6 +448,32 @@ mod tests {
             context_length: 2048,
             thread_count: 2,
         });
+        assert!(matches!(result, Err(InferenceEngineError::LoadFailed(_))));
+    }
+
+    #[test]
+    fn load_model_rejects_a_structurally_invalid_file_before_ever_contacting_the_worker() {
+        // Points at a worker binary that does not exist. If Model
+        // Validation did not run before `ensure_connection`, this would
+        // fail with `Unavailable` (spawn failure) instead of
+        // `LoadFailed` — this test's real assertion is about ordering,
+        // not just the final error variant, and needs no built worker
+        // binary to run.
+        let manager = RuntimeManager::new(
+            PathBuf::from("/definitely/does/not/exist/atlas-inference-worker"),
+            "test-load-corrupt-preflight",
+        );
+
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("corrupt.gguf");
+        std::fs::write(&path, b"not a gguf file at all").expect("write corrupt fixture");
+
+        let result = manager.load_model(LoadModelSpec {
+            path,
+            context_length: 2048,
+            thread_count: 2,
+        });
+
         assert!(matches!(result, Err(InferenceEngineError::LoadFailed(_))));
     }
 
