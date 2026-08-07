@@ -305,11 +305,16 @@ Runtime-specific remaining work, in priority order:
    `RuntimeManager` in the composition root pointed at the built
    `atlas-inference-worker` binary, and expose Tauri commands
    (`load_model`, `generate`, `get_runtime_metrics`) wrapping it.
-2. **CPU-ISA build/dispatch strategy** (ADR-0002's open item) — decide
-   how the shipped binary targets AVX2 vs. AVX-512 across the
-   competition's hardware range. Blocks making any *comparative*
-   throughput claim across that range; doesn't block today's single-
-   machine validation.
+2. **CPU-ISA build/dispatch strategy** — decided:
+   [ADR-0013](../adr/0013-cpu-isa-build-dispatch-strategy.md) adopts
+   GGML's own runtime multi-variant CPU backend dispatch
+   (`llama-cpp-sys-2`'s `dynamic-backends` feature), verified to compile
+   in this workspace. **Not yet flipped as the default build** — the
+   backend-`.so`-file discovery problem for an *installed* binary is
+   real (this session hit it directly) and is scoped to Phase 8
+   packaging work, per that ADR's Consequences section. Blocks making
+   any *comparative* throughput claim across the hardware range until
+   then; doesn't block today's single-machine validation.
 3. **Validate against the official Qwen 3 4B Instruct Q4_K_M reference
    model on Africa Deep Tech Challenge reference hardware** — see the
    benchmark report's explicit "not yet done" section. This sandbox
@@ -325,12 +330,15 @@ Runtime-specific remaining work, in priority order:
    and simple, but re-pays prompt-eval cost every turn of a multi-turn
    conversation. Revisit once Conversation & Session (Phase 5) defines
    what "reuse across turns" should mean at that layer.
-5. **Model Loader → Model Validation wiring.** `validate_model_file`
-   exists and is tested, but `RuntimeManager::load_model` doesn't call it
-   yet before sending `LoadModel` to the worker — right now the only
-   defense against a bad file is the worker's own existence check plus
-   process isolation. Wiring Model Validation in as a pre-flight check on
-   the main-process side is a small, additive change, not a rework.
+5. **Model Loader → Model Validation wiring — done.**
+   `RuntimeManager::load_model` now calls `validate_model_file` as a
+   pre-flight check before ever constructing a `LoadModel` request,
+   verified by a dedicated test
+   (`load_model_rejects_a_structurally_invalid_file_before_ever_contacting_the_worker`)
+   that proves the rejection happens before the worker is even spawned.
+   Process isolation (ADR-0010) remains the second layer of defense for
+   what validation can't catch (a structurally-valid-but-adversarial
+   file, or a llama.cpp bug).
 6. **`atlas-config` extension for Runtime settings** (default model path,
    thread-count override, RAM-tier override, default language) —
    `AppConfig` doesn't have these fields yet; adding them is

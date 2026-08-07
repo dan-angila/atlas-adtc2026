@@ -40,6 +40,9 @@ an issue, don't silently pick a winner.
 | [0008](0008-apache-2.0-license.md) | Apache License 2.0 as the project license | Accepted |
 | [0009](0009-crate-packaging-module-boundaries.md) | Collapse bounded-context packaging into module boundaries within two crates | Accepted |
 | [0010](0010-inference-worker-process-isolation.md) | Supervised child process isolation for the inference worker | Accepted |
+| [0011](0011-ram-tiering-constraints-amendment.md) | RAM-tiering constraints — GQA, KV-cache quantization, and a concrete context length (amends 0006) | Accepted |
+| [0012](0012-model-licensing-compatibility.md) | Model-licensing compatibility constraint for recommended and default models | Accepted |
+| [0013](0013-cpu-isa-build-dispatch-strategy.md) | CPU instruction-set dispatch strategy | Accepted |
 
 ## Template
 

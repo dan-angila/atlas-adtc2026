@@ -44,11 +44,12 @@ Last updated: 2026-08-04
 - **Architecture:** baselined and extended. See
   `docs/architecture/overview.md` and
   `docs/architecture/runtime-architecture.md`.
-- **Foundational decisions:** recorded as ADR-0001 through ADR-0010 in
+- **Foundational decisions:** recorded as ADR-0001 through ADR-0013 in
   `docs/adr/`, covering deployment topology, primary language, inference
   engine, storage, architecture style, crate/module packaging,
-  RAM/quantization strategy, desktop shell, license, and inference
-  process isolation.
+  RAM/quantization strategy, desktop shell, license, inference process
+  isolation, RAM-tiering constraints, model-licensing, and CPU-ISA
+  dispatch strategy.
 - **Independent review:** a full architecture review exists at
   `docs/execution/architecture-review-2026-08-04.md`. Its process-
   isolation finding is now resolved (ADR-0010); its CPU-ISA finding
@@ -70,10 +71,21 @@ Last updated: 2026-08-04
   `libwebkit2gtk-4.1-dev`, et al.) — unrelated to the Runtime itself,
   which builds, tests, and runs real inference independently of
   `atlas-app`. See `docs/architecture/runtime-architecture.md` §7.
-- **CPU-ISA build/dispatch strategy** (ADR-0002 required action 2): how
-  the binary targets AVX2 vs. AVX-512 across the competition's hardware
-  range is undecided. Blocks any *comparative* throughput claim across
-  that range, not today's single-machine validation.
+- **CPU-ISA build/dispatch strategy** — decided
+  ([ADR-0013](../adr/0013-cpu-isa-build-dispatch-strategy.md): GGML's own
+  runtime multi-variant CPU backend dispatch, verified to compile in this
+  workspace) but not yet the default build — flipping it requires the
+  Phase 8 packaging work to resolve installed-binary shared-library
+  discovery first. Blocks any *comparative* throughput claim across the
+  hardware range, not today's single-machine validation.
+- **RAM-tier arithmetic constraints** — [ADR-0011](../adr/0011-ram-tiering-constraints-amendment.md)
+  added the GQA/MQA, KV-cache-quantization, and concrete-context-length
+  constraints the original ADR-0006 lacked, and marked the Standard tier
+  provisional. Settling it for real still requires the Qwen 3 4B
+  reference-model benchmark below.
+- **Model-licensing constraint for recommended/default models** — added
+  in [ADR-0012](../adr/0012-model-licensing-compatibility.md), ahead of
+  any specific model being named as a tier default.
 - **Validation against the official Qwen 3 4B Instruct Q4_K_M reference
   model** on Africa Deep Tech Challenge reference hardware (Ubuntu
   22.04) has not yet been run — see
