@@ -19,6 +19,13 @@ which don't belong to any single crate.
 
 ## Status
 
-Empty. No test infrastructure exists yet because no application code
-exists yet — see `docs/baseline/engineering-baseline.md` for the current
-state of the repository.
+Empty — but no longer for the original reason. Real application code and
+103 unit/integration tests now exist (see
+`docs/baseline/engineering-baseline.md`), all of them scoped to a single
+crate/module (unit) or a single adapter (integration), per the table
+above. This directory stays empty specifically because no *cross-context*
+flow exists yet to test — only the Inference & Generation bounded context
+has real logic today; Document Ingestion, Knowledge Retrieval,
+Conversation & Session, and Reporting & Authoring are still stubs. It
+will gain its first real content once a second bounded context exists to
+compose with the first (Phase 2, `docs/roadmap/development-roadmap.md`).

@@ -18,12 +18,15 @@ Establish the repository as a credible long-term open-source project
 before any application code exists.
 
 - [x] Repository structure, README, governance files (this deliverable)
-- [x] Architecture baseline and initial ADRs (0001–0009)
+- [x] Architecture baseline and initial ADRs (0001–0013)
 - [x] CI skeleton: lint/format checks for Markdown, Rust (fmt/clippy/test/
       cargo-deny), and the front end (eslint/prettier/build); dependency-
       boundary lint per `module-boundaries.md`
-- [ ] GitHub labels, milestones, and project board provisioned from the
-      proposals in `docs/execution/`
+- [x] GitHub labels (36) and milestones (9) provisioned live from the
+      proposals in `docs/execution/` (verified via `gh api` 2026-08-07)
+- [ ] GitHub project board provisioned (not independently verified this
+      pass — the credential used lacked the `read:project` scope to
+      check; confirm directly on GitHub before marking this closed)
 
 **Exit criteria:** a new contributor can clone the repo and understand the
 vision, constraints, architecture, and how to contribute without asking a
