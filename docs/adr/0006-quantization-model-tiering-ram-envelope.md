@@ -1,6 +1,8 @@
 # ADR-0006: Quantization strategy and model tiering for the 8GB RAM envelope
 
-Status: Accepted
+Status: Accepted (Standard tier marked provisional, GQA/KV-cache-quantization/
+context-length constraints added by [ADR-0011](0011-ram-tiering-constraints-amendment.md)
+— the tiering strategy itself is unchanged)
 Date: 2026-08-04
 
 ## Context
