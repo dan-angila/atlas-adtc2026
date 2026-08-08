@@ -155,7 +155,8 @@ Real schema (the sketch below was illustrative; this is what actually
 exists):
 
 ```text
-documents(rowid, document_id, title, source_path, format, checksum)
+documents(rowid, document_id, title, source_path, format, checksum,
+          organization, source_url, jurisdiction, license, retrieved_date)
 chunks(rowid, chunk_id, document_id, text, heading_path, start_byte, end_byte)
 chunks_fts USING fts5(text, content='chunks', content_rowid='rowid')   -- kept in sync via triggers
 chunk_embeddings USING vec0(embedding float[N] distance_metric=cosine) -- N is a runtime parameter, not hardcoded
@@ -166,6 +167,17 @@ chunk_embeddings USING vec0(embedding float[N] distance_metric=cosine) -- N is a
 implements for GGUF files — the same "don't trust a file just because
 the path matches" discipline applies to source documents, and re-running
 the same hashing pattern is cheaper than inventing a second one.
+
+The five provenance columns (`organization`, `source_url`,
+`jurisdiction`, `license`, `retrieved_date`) are nullable — populated for
+the healthcare corpus (parsed from each source file's YAML front matter
+by `crates/atlas-engine/examples/build_healthcare_corpus.rs`, since that
+parsing is corpus-specific, not a general ingestion concern) and `NULL`
+for any document ingested without that metadata. `Citation` (§8) carries
+these through from the same `get_document` lookup that already resolves
+`document_title`, so the citations UI can show real organization/
+jurisdiction/license per source — never fabricated, never present for a
+document that doesn't actually have it.
 
 ## 6. Hybrid retrieval
 
@@ -239,13 +251,18 @@ important part of that case — no model call happens at all).
 ## 8. Response citations
 
 **Implemented** — `RagAnswerer::answer` returns citations
-(`document_id`, `chunk_id`, document title, heading path) *before* the
-first generated token arrives, built entirely from the retrieval layer's
-own stored records via `KnowledgeRepository::get_document`, never parsed
-out of anything the model generates. A caller can render "Sources:"
-immediately alongside the streaming answer, keeping retrieved evidence
-and generated text visibly separate, per this document's original intent
-that citation data exist independently of the generation step.
+(`document_id`, `chunk_id`, document title, heading path, and — since
+2026-08-09 — `organization`/`jurisdiction`/`license`/`retrieved_date`
+when the source document carries them, §5) *before* the first generated
+token arrives, built entirely from the retrieval layer's own stored
+records via `KnowledgeRepository::get_document`, never parsed out of
+anything the model generates. A caller can render "Sources:" immediately
+alongside the streaming answer, keeping retrieved evidence and generated
+text visibly separate, per this document's original intent that citation
+data exist independently of the generation step. The desktop UI's
+Evidence panel (Ask Atlas) and document cards (Medical Knowledge) render
+this provenance directly — a document with no `license` shows no
+"License verified" badge, rather than a fabricated one.
 
 **Refusal, not just citation, for the no-evidence case:** when retrieval
 confidence is `NoEvidence`, `RagAnswerer::answer` returns

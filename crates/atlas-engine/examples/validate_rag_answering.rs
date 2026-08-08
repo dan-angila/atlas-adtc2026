@@ -121,6 +121,11 @@ fn main() {
             source_path: "sample-document.md".into(),
             format: DocumentFormat::Markdown,
             checksum: "0".repeat(64),
+            organization: None,
+            source_url: None,
+            jurisdiction: None,
+            license: None,
+            retrieved_date: None,
         })
         .expect("storing the document failed");
     for (chunk, embedding) in chunks.iter().zip(embed_batch.vectors.iter()) {

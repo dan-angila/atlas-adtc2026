@@ -36,17 +36,22 @@ function EvidencePanel({ citations }: { citations: CitationDto[] }) {
       <div className="evidence-panel-header">
         <h4>Evidence ({citations.length})</h4>
       </div>
-      {citations.map((citation, index) => (
-        <div className="evidence-item" key={`${citation.chunkId}-${index}`}>
-          <div className="evidence-item-body">
-            <span className="evidence-title">{citation.documentTitle ?? "Untitled source"}</span>
-            {citation.headingPath.length > 0 && (
-              <span className="evidence-meta">{citation.headingPath.join(" > ")}</span>
-            )}
+      {citations.map((citation, index) => {
+        const meta = [citation.organization, citation.jurisdiction, ...citation.headingPath].filter(
+          Boolean,
+        );
+        return (
+          <div className="evidence-item" key={`${citation.chunkId}-${index}`}>
+            <div className="evidence-item-body">
+              <span className="evidence-title">{citation.documentTitle ?? "Untitled source"}</span>
+              {meta.length > 0 && <span className="evidence-meta">{meta.join(" · ")}</span>}
+            </div>
+            <span className="evidence-source-tag">
+              {citation.license ? "License verified" : "Local corpus"}
+            </span>
           </div>
-          <span className="evidence-source-tag">Local corpus</span>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

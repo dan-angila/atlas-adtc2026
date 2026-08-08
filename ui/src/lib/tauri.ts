@@ -21,6 +21,11 @@ export interface CitationDto {
   chunkId: string;
   documentTitle: string | null;
   headingPath: string[];
+  organization: string | null;
+  jurisdiction: string | null;
+  /** Presence signals "license-verified" — see the Rust doc comment. */
+  license: string | null;
+  retrievedDate: string | null;
 }
 
 /** Mirrors `atlas_app_lib::commands::AskAtlasResponseDto`. */
@@ -48,6 +53,11 @@ export interface DocumentSummaryDto {
   title: string;
   sourcePath: string;
   format: string;
+  organization: string | null;
+  sourceUrl: string | null;
+  jurisdiction: string | null;
+  license: string | null;
+  retrievedDate: string | null;
 }
 
 /** Mirrors `atlas_app_lib::commands::LanguageDto`. */

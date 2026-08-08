@@ -63,6 +63,20 @@ pub struct Citation {
     /// closest thing to a page number this project's formats reliably
     /// offer; see [`atlas_domain::HeadingPath`].
     pub heading_path: HeadingPath,
+    /// The source's organization/author, if the document record carries
+    /// one — see [`atlas_domain::DocumentRecord::organization`].
+    pub organization: Option<String>,
+    /// The source's jurisdiction, if known — see
+    /// [`atlas_domain::DocumentRecord::jurisdiction`].
+    pub jurisdiction: Option<String>,
+    /// The license this source is verified usable under, if known — see
+    /// [`atlas_domain::DocumentRecord::license`]. `Some` is this
+    /// project's signal for "license-verified"; never rendered or
+    /// implied for a document that doesn't actually carry one.
+    pub license: Option<String>,
+    /// The date this source was retrieved, if known — see
+    /// [`atlas_domain::DocumentRecord::retrieved_date`].
+    pub retrieved_date: Option<String>,
 }
 
 /// Why a query was refused outright instead of generating an answer.
@@ -214,18 +228,29 @@ impl RagAnswerer {
     /// detail, and the document id/chunk id/heading path (the load-
     /// bearing provenance) are preserved regardless.
     fn build_citation(&self, result: &RetrievedChunk) -> Citation {
-        let document_title = self
+        let document = self
             .knowledge
             .get_document(result.chunk.document_id)
             .ok()
-            .flatten()
-            .map(|document| document.title);
+            .flatten();
 
         Citation {
             document_id: result.chunk.document_id,
             chunk_id: result.chunk.id,
-            document_title,
+            document_title: document.as_ref().map(|document| document.title.clone()),
             heading_path: result.chunk.heading_path.clone(),
+            organization: document
+                .as_ref()
+                .and_then(|document| document.organization.clone()),
+            jurisdiction: document
+                .as_ref()
+                .and_then(|document| document.jurisdiction.clone()),
+            license: document
+                .as_ref()
+                .and_then(|document| document.license.clone()),
+            retrieved_date: document
+                .as_ref()
+                .and_then(|document| document.retrieved_date.clone()),
         }
     }
 }
@@ -396,6 +421,11 @@ mod tests {
             source_path: "/docs/amoxicillin.md".into(),
             format: DocumentFormat::Markdown,
             checksum: "a".repeat(64),
+            organization: Some("CDC".to_string()),
+            source_url: Some("https://example.gov/amoxicillin".to_string()),
+            jurisdiction: Some("United States".to_string()),
+            license: Some("Public domain".to_string()),
+            retrieved_date: Some("2026-08-08".to_string()),
         };
         knowledge.store_document(&document).unwrap();
         let evidence_chunk = chunk(document.id, "amoxicillin dosage guidance", "Adult Dosage");
@@ -434,6 +464,10 @@ mod tests {
                     Some("Amoxicillin Reference")
                 );
                 assert_eq!(citations[0].heading_path, vec!["Adult Dosage".to_string()]);
+                assert_eq!(citations[0].organization.as_deref(), Some("CDC"));
+                assert_eq!(citations[0].jurisdiction.as_deref(), Some("United States"));
+                assert_eq!(citations[0].license.as_deref(), Some("Public domain"));
+                assert_eq!(citations[0].retrieved_date.as_deref(), Some("2026-08-08"));
 
                 let events: Vec<_> = stream.collect();
                 assert!(

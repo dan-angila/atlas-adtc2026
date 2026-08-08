@@ -117,6 +117,11 @@ fn main() {
             source_path: "synthetic.md".into(),
             format: DocumentFormat::PlainText,
             checksum: "0".repeat(64),
+            organization: None,
+            source_url: None,
+            jurisdiction: None,
+            license: None,
+            retrieved_date: None,
         })
         .expect("storing document failed");
 

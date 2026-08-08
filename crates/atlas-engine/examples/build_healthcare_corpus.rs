@@ -28,6 +28,7 @@
 
 #![allow(clippy::expect_used, clippy::panic)]
 
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -50,6 +51,39 @@ fn sha256_hex(bytes: &[u8]) -> String {
         .iter()
         .map(|byte| format!("{byte:02x}"))
         .collect()
+}
+
+/// Parses the leading YAML front-matter block (`---` ... `---`) each
+/// file in `research/healthcare-corpus/sources/` carries into a flat
+/// `key -> value` map — this is the provenance data
+/// `research/healthcare-corpus/MANIFEST.md` promises "travels with the
+/// file". Not a general YAML parser: every value here is a flat
+/// `key: "quoted string"` or `key: bareword` line, so hand-rolling this
+/// is simpler and more honest than adding a YAML dependency for a
+/// format this constrained. [`MarkdownParser`] deliberately strips this
+/// same block for chunking (front matter isn't chunk content); this is
+/// a second, narrower read of the raw bytes, scoped to this
+/// corpus-specific script, not a change to the general ingestion path.
+fn parse_front_matter(text: &str) -> HashMap<String, String> {
+    let mut fields = HashMap::new();
+    let Some(after_open) = text.strip_prefix("---\n") else {
+        return fields;
+    };
+    let Some(end) = after_open.find("\n---") else {
+        return fields;
+    };
+    for line in after_open[..end].lines() {
+        let Some((key, value)) = line.split_once(':') else {
+            continue;
+        };
+        let value = value.trim();
+        let value = value
+            .strip_prefix('"')
+            .and_then(|v| v.strip_suffix('"'))
+            .unwrap_or(value);
+        fields.insert(key.trim().to_string(), value.to_string());
+    }
+    fields
 }
 
 fn main() {
@@ -122,6 +156,7 @@ fn main() {
     for path in &entries {
         let raw = fs::read(path).unwrap_or_else(|error| panic!("reading {path:?} failed: {error}"));
         let checksum = sha256_hex(&raw);
+        let front_matter = parse_front_matter(&String::from_utf8_lossy(&raw));
 
         let parsed = MarkdownParser::new()
             .parse(&raw)
@@ -159,6 +194,11 @@ fn main() {
                 source_path: path.clone(),
                 format: DocumentFormat::Markdown,
                 checksum,
+                organization: front_matter.get("source_organization").cloned(),
+                source_url: front_matter.get("source_url").cloned(),
+                jurisdiction: front_matter.get("jurisdiction").cloned(),
+                license: front_matter.get("license").cloned(),
+                retrieved_date: front_matter.get("retrieved_date").cloned(),
             })
             .unwrap_or_else(|error| panic!("storing document record for {path:?} failed: {error}"));
         for (chunk, embedding) in chunks.iter().zip(embed_batch.vectors.iter()) {

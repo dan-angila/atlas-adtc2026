@@ -441,6 +441,11 @@ pub mod testing {
                 source_path: "/tmp/test.md".into(),
                 format: atlas_domain::DocumentFormat::Markdown,
                 checksum: "a".repeat(64),
+                organization: None,
+                source_url: None,
+                jurisdiction: None,
+                license: None,
+                retrieved_date: None,
             };
             repo.store_document(&document).unwrap();
         }
@@ -454,6 +459,11 @@ pub mod testing {
                 source_path: "/tmp/test.md".into(),
                 format: atlas_domain::DocumentFormat::Markdown,
                 checksum: "a".repeat(64),
+                organization: None,
+                source_url: None,
+                jurisdiction: None,
+                license: None,
+                retrieved_date: None,
             };
             repo.store_document(&document).unwrap();
 
@@ -475,6 +485,11 @@ pub mod testing {
                 source_path: "/tmp/test.md".into(),
                 format: atlas_domain::DocumentFormat::Markdown,
                 checksum: "a".repeat(64),
+                organization: None,
+                source_url: None,
+                jurisdiction: None,
+                license: None,
+                retrieved_date: None,
             };
             repo.store_document(&document).unwrap();
 

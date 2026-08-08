@@ -142,7 +142,12 @@ fn create_schema(
                 title TEXT NOT NULL,
                 source_path TEXT NOT NULL,
                 format TEXT NOT NULL,
-                checksum TEXT NOT NULL
+                checksum TEXT NOT NULL,
+                organization TEXT,
+                source_url TEXT,
+                jurisdiction TEXT,
+                license TEXT,
+                retrieved_date TEXT
             );
 
             CREATE TABLE IF NOT EXISTS chunks (
@@ -187,14 +192,20 @@ impl KnowledgeRepository for SqliteKnowledgeRepository {
     fn store_document(&self, document: &DocumentRecord) -> Result<(), RetrievalError> {
         self.lock()
             .execute(
-                "INSERT INTO documents (document_id, title, source_path, format, checksum)
-                 VALUES (?1, ?2, ?3, ?4, ?5)",
+                "INSERT INTO documents (document_id, title, source_path, format, checksum,
+                                         organization, source_url, jurisdiction, license, retrieved_date)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
                 rusqlite::params![
                     document.id.to_string(),
                     document.title,
                     document.source_path.to_string_lossy(),
                     format_to_str(document.format),
                     document.checksum,
+                    document.organization,
+                    document.source_url,
+                    document.jurisdiction,
+                    document.license,
+                    document.retrieved_date,
                 ],
             )
             .map_err(|error| {
@@ -294,7 +305,9 @@ impl KnowledgeRepository for SqliteKnowledgeRepository {
         let connection = self.lock();
         let row = connection
             .query_row(
-                "SELECT title, source_path, format, checksum FROM documents WHERE document_id = ?1",
+                "SELECT title, source_path, format, checksum,
+                        organization, source_url, jurisdiction, license, retrieved_date
+                 FROM documents WHERE document_id = ?1",
                 rusqlite::params![document_id.to_string()],
                 |row| {
                     Ok((
@@ -302,6 +315,11 @@ impl KnowledgeRepository for SqliteKnowledgeRepository {
                         row.get::<_, String>(1)?,
                         row.get::<_, String>(2)?,
                         row.get::<_, String>(3)?,
+                        row.get::<_, Option<String>>(4)?,
+                        row.get::<_, Option<String>>(5)?,
+                        row.get::<_, Option<String>>(6)?,
+                        row.get::<_, Option<String>>(7)?,
+                        row.get::<_, Option<String>>(8)?,
                     ))
                 },
             )
@@ -310,7 +328,18 @@ impl KnowledgeRepository for SqliteKnowledgeRepository {
                 RetrievalError::Storage(format!("failed to look up document: {error}"))
             })?;
 
-        let Some((title, source_path, format, checksum)) = row else {
+        let Some((
+            title,
+            source_path,
+            format,
+            checksum,
+            organization,
+            source_url,
+            jurisdiction,
+            license,
+            retrieved_date,
+        )) = row
+        else {
             return Ok(None);
         };
 
@@ -320,13 +349,22 @@ impl KnowledgeRepository for SqliteKnowledgeRepository {
             source_path: source_path.into(),
             format: str_to_format(&format)?,
             checksum,
+            organization,
+            source_url,
+            jurisdiction,
+            license,
+            retrieved_date,
         }))
     }
 
     fn list_documents(&self) -> Result<Vec<DocumentRecord>, RetrievalError> {
         let connection = self.lock();
         let mut statement = connection
-            .prepare("SELECT document_id, title, source_path, format, checksum FROM documents")
+            .prepare(
+                "SELECT document_id, title, source_path, format, checksum,
+                        organization, source_url, jurisdiction, license, retrieved_date
+                 FROM documents",
+            )
             .map_err(|error| {
                 RetrievalError::Storage(format!("failed to prepare document listing: {error}"))
             })?;
@@ -339,6 +377,11 @@ impl KnowledgeRepository for SqliteKnowledgeRepository {
                     row.get::<_, String>(2)?,
                     row.get::<_, String>(3)?,
                     row.get::<_, String>(4)?,
+                    row.get::<_, Option<String>>(5)?,
+                    row.get::<_, Option<String>>(6)?,
+                    row.get::<_, Option<String>>(7)?,
+                    row.get::<_, Option<String>>(8)?,
+                    row.get::<_, Option<String>>(9)?,
                 ))
             })
             .map_err(|error| {
@@ -347,7 +390,18 @@ impl KnowledgeRepository for SqliteKnowledgeRepository {
 
         let mut documents = Vec::new();
         for row in rows {
-            let (document_id, title, source_path, format, checksum) = row.map_err(|error| {
+            let (
+                document_id,
+                title,
+                source_path,
+                format,
+                checksum,
+                organization,
+                source_url,
+                jurisdiction,
+                license,
+                retrieved_date,
+            ) = row.map_err(|error| {
                 RetrievalError::Storage(format!("failed to read a document row: {error}"))
             })?;
             let document_uuid = Uuid::parse_str(&document_id).map_err(|error| {
@@ -359,6 +413,11 @@ impl KnowledgeRepository for SqliteKnowledgeRepository {
                 source_path: source_path.into(),
                 format: str_to_format(&format)?,
                 checksum,
+                organization,
+                source_url,
+                jurisdiction,
+                license,
+                retrieved_date,
             });
         }
         Ok(documents)
@@ -596,6 +655,11 @@ mod tests {
             source_path: "/tmp/test.md".into(),
             format: DocumentFormat::Markdown,
             checksum: "a".repeat(64),
+            organization: None,
+            source_url: None,
+            jurisdiction: None,
+            license: None,
+            retrieved_date: None,
         }
     }
 
@@ -645,6 +709,11 @@ mod tests {
             source_path: "/tmp/second.md".into(),
             format: atlas_domain::DocumentFormat::Markdown,
             checksum: "b".repeat(64),
+            organization: Some("CDC".to_string()),
+            source_url: Some("https://example.gov/second".to_string()),
+            jurisdiction: Some("United States".to_string()),
+            license: Some("Public domain".to_string()),
+            retrieved_date: Some("2026-08-08".to_string()),
         };
         repo.store_document(&first).unwrap();
         repo.store_document(&second).unwrap();

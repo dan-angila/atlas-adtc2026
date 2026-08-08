@@ -154,6 +154,11 @@ fn main() {
         source_path: "sample-document.md".into(),
         format: DocumentFormat::Markdown,
         checksum: "0".repeat(64),
+        organization: None,
+        source_url: None,
+        jurisdiction: None,
+        license: None,
+        retrieved_date: None,
     };
     repository
         .store_document(&document_record)

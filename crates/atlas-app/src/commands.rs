@@ -111,6 +111,16 @@ pub struct CitationDto {
     pub document_title: Option<String>,
     /// Heading path within the document.
     pub heading_path: Vec<String>,
+    /// The source's organization/author, if the document record has one.
+    pub organization: Option<String>,
+    /// The source's jurisdiction, if known.
+    pub jurisdiction: Option<String>,
+    /// The license this source is verified usable under, if known —
+    /// presence of this field is this project's "license-verified"
+    /// signal (see `research/healthcare-corpus/MANIFEST.md`).
+    pub license: Option<String>,
+    /// The date this source was retrieved, if known.
+    pub retrieved_date: Option<String>,
 }
 
 /// The result of asking Atlas a question — a tagged union so the
@@ -236,6 +246,10 @@ pub fn ask_atlas(
                         chunk_id: citation.chunk_id.to_string(),
                         document_title: citation.document_title,
                         heading_path: citation.heading_path,
+                        organization: citation.organization,
+                        jurisdiction: citation.jurisdiction,
+                        license: citation.license,
+                        retrieved_date: citation.retrieved_date,
                     })
                     .collect(),
                 answer,
@@ -258,6 +272,16 @@ pub struct DocumentSummaryDto {
     pub source_path: String,
     /// Document format (e.g. `"Markdown"`).
     pub format: String,
+    /// The source's organization/author, if known.
+    pub organization: Option<String>,
+    /// The URL this document was retrieved from, if known.
+    pub source_url: Option<String>,
+    /// The source's jurisdiction, if known.
+    pub jurisdiction: Option<String>,
+    /// The license this source is verified usable under, if known.
+    pub license: Option<String>,
+    /// The date this document was retrieved, if known.
+    pub retrieved_date: Option<String>,
 }
 
 /// Lists every document in the real knowledge base.
@@ -287,6 +311,11 @@ pub fn list_documents(
                     title: document.title,
                     source_path: document.source_path.to_string_lossy().into_owned(),
                     format: format!("{:?}", document.format),
+                    organization: document.organization,
+                    source_url: document.source_url,
+                    jurisdiction: document.jurisdiction,
+                    license: document.license,
+                    retrieved_date: document.retrieved_date,
                 })
                 .collect()
         })

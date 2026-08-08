@@ -77,6 +77,26 @@ pub struct DocumentRecord {
     /// `atlas_engine::inference::model_registry::validate_model_file`
     /// already applies to GGUF files (`docs/design/rag-pipeline.md` §5).
     pub checksum: String,
+    /// The organization or author credited as the source, if known —
+    /// e.g. `"CDC"` or `"NIH/NIDDK"`. `None` for a document ingested
+    /// without provenance metadata (e.g. an ordinary user upload).
+    pub organization: Option<String>,
+    /// The URL the source content was retrieved from, if known.
+    pub source_url: Option<String>,
+    /// The legal/regulatory jurisdiction the source applies to, if
+    /// known — e.g. `"United States (federal government work)"`.
+    pub jurisdiction: Option<String>,
+    /// The license or copyright status under which this content may be
+    /// used, if verified — e.g. `"Public domain (17 U.S.C. § 105)"`.
+    /// `Some` is this project's signal for "license-verified" (see
+    /// `research/healthcare-corpus/MANIFEST.md`); a citation UI may
+    /// treat its presence as a verification badge rather than storing a
+    /// separate boolean that would just restate this field.
+    pub license: Option<String>,
+    /// The date this content was retrieved from its source, if known
+    /// (ISO 8601, e.g. `"2026-08-08"`) — not a claim that the source
+    /// hasn't changed since.
+    pub retrieved_date: Option<String>,
 }
 
 /// Where a chunk sits in its source document's heading structure — e.g.
@@ -138,6 +158,11 @@ mod tests {
             source_path: PathBuf::from("/docs/q3-board-deck.md"),
             format: DocumentFormat::Markdown,
             checksum: "a".repeat(64),
+            organization: None,
+            source_url: None,
+            jurisdiction: None,
+            license: None,
+            retrieved_date: None,
         };
 
         let json = serde_json::to_string(&record).expect("serialize");

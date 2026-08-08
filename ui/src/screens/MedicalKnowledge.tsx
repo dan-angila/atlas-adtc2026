@@ -85,8 +85,7 @@ export function MedicalKnowledge({ runtimeStatus }: { runtimeStatus: RuntimeStat
       <p className="notice" style={{ marginBottom: "var(--space-5)" }}>
         A structured drug-reference lookup is not a separate capability yet — ask Atlas directly for
         medication questions; it will answer from these same documents or tell you when it
-        can&apos;t. Full provenance (organization, jurisdiction, license) for each source is
-        recorded in <code>research/healthcare-corpus/MANIFEST.md</code>.
+        can&apos;t.
       </p>
 
       {filtered.length === 0 ? (
@@ -104,10 +103,27 @@ export function MedicalKnowledge({ runtimeStatus }: { runtimeStatus: RuntimeStat
               <div className="doc-card-header">
                 <h3 className="doc-card-title">{document.title}</h3>
                 <Badge tone="neutral">{document.format}</Badge>
+                {document.license && <Badge tone="success">License verified</Badge>}
               </div>
               <div className="doc-card-meta">
-                <span>{document.sourcePath}</span>
+                <span>
+                  {[document.organization, document.jurisdiction, document.sourcePath]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </span>
               </div>
+              {(document.license || document.retrievedDate) && (
+                <div className="doc-card-meta">
+                  <span>
+                    {[
+                      document.license,
+                      document.retrievedDate && `retrieved ${document.retrievedDate}`,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </span>
+                </div>
+              )}
             </div>
           ))}
         </div>
