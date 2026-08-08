@@ -6,7 +6,6 @@ import { AskAtlas } from "./screens/AskAtlas";
 import { MedicalKnowledge } from "./screens/MedicalKnowledge";
 import { Languages } from "./screens/Languages";
 import { RuntimeBenchmark } from "./screens/RuntimeBenchmark";
-import { BrixPlatform } from "./screens/BrixPlatform";
 import { useRuntimeStatus } from "./lib/useRuntimeStatus";
 
 /**
@@ -28,7 +27,6 @@ export default function App() {
       {screen === "drugs" && <MedicalKnowledge runtimeStatus={runtimeStatus} />}
       {screen === "languages" && <Languages runtimeStatus={runtimeStatus} />}
       {screen === "runtime" && <RuntimeBenchmark runtimeStatus={runtimeStatus} />}
-      {screen === "brix" && <BrixPlatform />}
       <AccessibilityWidget />
     </AppShell>
   );

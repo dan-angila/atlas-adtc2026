@@ -1,10 +1,10 @@
 import type { ReactNode } from "react";
 
-import { BookIcon, ChatIcon, DropletIcon, GaugeIcon, GlobeIcon, LinkIcon } from "./icons";
+import { BookIcon, ChatIcon, DropletIcon, GaugeIcon, GlobeIcon } from "./icons";
 import { RuntimeStatusPill } from "./RuntimeStatusPill";
 import type { RuntimeStatusDto } from "../lib/tauri";
 
-export type Screen = "ask" | "knowledge" | "drugs" | "languages" | "runtime" | "brix";
+export type Screen = "ask" | "knowledge" | "drugs" | "languages" | "runtime";
 
 const ATLAS_NAV_ITEMS: { id: Screen; label: string; icon: ReactNode }[] = [
   { id: "ask", label: "Ask Atlas", icon: <ChatIcon /> },
@@ -12,10 +12,6 @@ const ATLAS_NAV_ITEMS: { id: Screen; label: string; icon: ReactNode }[] = [
   { id: "drugs", label: "Drug Reference", icon: <DropletIcon /> },
   { id: "languages", label: "Languages", icon: <GlobeIcon /> },
   { id: "runtime", label: "Runtime & Benchmark", icon: <GaugeIcon /> },
-];
-
-const BRIX_NAV_ITEMS: { id: Screen; label: string; icon: ReactNode }[] = [
-  { id: "brix", label: "BRIX Platform", icon: <LinkIcon /> },
 ];
 
 const SCREEN_TITLES: Record<Screen, { title: string; subtitle: string }> = {
@@ -38,10 +34,6 @@ const SCREEN_TITLES: Record<Screen, { title: string; subtitle: string }> = {
   runtime: {
     title: "Runtime & Benchmark",
     subtitle: "Model, hardware, and real performance measurements",
-  },
-  brix: {
-    title: "BRIX Platform",
-    subtitle: "Healthcare operations, in the wider BRIX ecosystem",
   },
 };
 
@@ -78,24 +70,6 @@ export function AppShell({
               <button
                 type="button"
                 className={`nav-item${active === item.id ? " active" : ""}`}
-                onClick={() => onNavigate(item.id)}
-                aria-current={active === item.id ? "page" : undefined}
-                title={item.label}
-              >
-                <span className="nav-icon">{item.icon}</span>
-                <span className="nav-label">{item.label}</span>
-              </button>
-            </li>
-          ))}
-        </ul>
-
-        <div className="nav-group-label">Brix</div>
-        <ul className="nav-list">
-          {BRIX_NAV_ITEMS.map((item) => (
-            <li key={item.id}>
-              <button
-                type="button"
-                className={`nav-item nav-item-adjacent${active === item.id ? " active" : ""}`}
                 onClick={() => onNavigate(item.id)}
                 aria-current={active === item.id ? "page" : undefined}
                 title={item.label}

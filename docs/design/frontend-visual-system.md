@@ -129,31 +129,29 @@ composition, the six references won, per explicit instruction — only
 the sidebar/brand identity and radius were adopted from BRIX Pharma;
 Atlas's page layouts still follow the six references directly.
 
-## BRIX Platform: from disclaimer page to ecosystem surface
+## BRIX Platform screen: removed (2026-08-08)
 
-An earlier version of this screen read as an architecture/documentation
-page (ADR references, long "not built here" paragraphs) — rejected as
-not being product UX. It was rebuilt as a compact, polished surface:
-a hero (BRIX mark, name, one-line description, a real-looking but
-honest "Connected to the BRIX ecosystem" status badge), four
-representational capability cards (Drug & Inventory, Accounting,
-Reports, BRIX Intelligence — each tagged `BRIX`, never implemented
-inside Atlas), and one CTA ("Open BRIX →") that honestly reports
-**"BRIX connection not configured in this build"** rather than
-pretending a live integration exists — there is no BRIX URL or
-connection configuration anywhere in this codebase, verified by search
-before writing this screen.
+An earlier pass added a "BRIX Platform" screen: a hero with a permanent
+"Connected to the BRIX ecosystem" status badge and four representational
+capability cards (Drug & Inventory, Accounting, Reports, BRIX
+Intelligence). It was removed after explicit founder direction: **Atlas
+is not BRIX Pharma**, and a persistent "Connected" badge next to
+inventory/accounting/billing-flavored cards reads as real ERP
+functionality regardless of the "representational only" intent behind
+it — exactly the enterprise-ERP surface ADR-0014's healthcare-vertical
+pivot exists to avoid, and misleading regardless of authorial intent.
+The screen, its route, and its sidebar nav group are deleted from
+`ui/src/` (see `App.tsx`, `AppShell.tsx`); nothing in `atlas-engine` or
+`atlas-app` referenced it, so removal was UI-only.
 
 ## Explicitly out of scope
 
 No new backend capability, no new Tauri command, no change to the RAG
-pipeline, model, or multilingual validation, in either pass. The
-information architecture is five real screens (Ask Atlas, Medical
-Knowledge, Drug Reference, Languages, Runtime & Benchmark) plus the one
-adjacent BRIX Platform entry point — "Drug Reference" reuses the exact
-same `list_documents` data and component as Medical Knowledge (a
+pipeline, model, or multilingual validation. The information
+architecture is five real screens: Ask Atlas, Medical Knowledge, Drug
+Reference, Languages, Runtime & Benchmark. "Drug Reference" reuses the
+exact same `list_documents` data and component as Medical Knowledge (a
 labeling/framing difference, not a new data source), consistent with
-"never fabricate a document." No accounting, inventory, or ERP logic
-exists inside Atlas itself; the BRIX Platform screen's capability cards
-are explicitly representational descriptions of a separate product, not
-functionality.
+"never fabricate a document." No accounting, inventory, billing, or ERP
+logic exists inside Atlas, and no screen should imply a live connection
+to any other product that isn't actually configured.
