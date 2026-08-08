@@ -345,6 +345,13 @@ validated in `/evaluation`, not just "the model produced text."
 **Exit criteria:** the platform meets every named competition requirement
 (Ubuntu 22.04, 8GB RAM, integrated graphics, CPU-optimized, offline,
 open-source) with evidence in `/benchmarks` — not an assertion.
+**Not yet met** — see
+[`docs/execution/gate-1-readiness.md`](../execution/gate-1-readiness.md)
+for the full, evidence-linked gap analysis (as of 2026-08-08: no
+reference-hardware validation, a retrieval-confidence safety gap, and
+an unconfirmed end-to-end desktop demo flow are the three blockers) and
+[`docs/execution/final-readiness-audit-2026-08.md`](../execution/final-readiness-audit-2026-08.md)
+for the flat 20-point checklist.
 
 ## Beyond the competition
 
