@@ -6,10 +6,14 @@
 //! [`inference`] is the Atlas Runtime — see that module's documentation
 //! for the full component map. [`ingestion`] has real content: a
 //! `DocumentParser` port with Markdown, CSV, DOCX, and PDF adapters.
-//! [`retrieval`] now has real content too: a `KnowledgeRepository` port
-//! with a SQLite + `sqlite-vec` + FTS5 adapter (ADR-0004). The remaining
-//! two bounded contexts ([`conversation`], [`reporting`]) remain
-//! documented placeholders — no conversation or enterprise-workflow logic
+//! [`retrieval`] has real content too: a `KnowledgeRepository` port with
+//! a SQLite + `sqlite-vec` + FTS5 adapter (ADR-0004). [`conversation`]
+//! now has real content as well: [`conversation::RagAnswerer`] composes
+//! both sibling contexts' ports into the actual RAG pipeline
+//! (`docs/design/rag-pipeline.md` §§4–8) — embed, retrieve, assess
+//! confidence, select evidence within budget, assemble a grounded
+//! prompt, generate, or refuse outright with no evidence. [`reporting`]
+//! remains a documented placeholder — no enterprise-workflow logic
 //! exists yet (`docs/roadmap/development-roadmap.md`).
 //!
 //! **Boundary rule** (`docs/architecture/module-boundaries.md`, rule 3):

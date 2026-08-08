@@ -17,9 +17,11 @@ architecture below is unaffected and remains fully domain-agnostic.
   live model, now with a dedicated embedding-model slot alongside
   generation. Document Ingestion has a real `DocumentParser` adapter for
   all four target formats (Markdown, CSV, DOCX, PDF); chunking is still a
-  placeholder-tuned thin slice. Knowledge Retrieval now has real content
-  too — see below. Conversation & Session and Reporting & Authoring
-  remain out of scope until later phases.
+  placeholder-tuned thin slice. Knowledge Retrieval has real hybrid
+  search. Conversation & Session now has real content too: the full RAG
+  answering pipeline (retrieve → confidence → evidence selection →
+  grounded prompt → generate → citations, or refuse) — see below.
+  Reporting & Authoring remains out of scope until a later phase.
   - `crates/atlas-domain` — pure domain types: `Id<T>`, `ModelFamily`,
     `Quantization`, `ModelDescriptor`, `LanguageCode`,
     `LanguageDescriptor`, `RamTier`, `RuntimeStatus`, `InferenceParams`,
@@ -46,9 +48,14 @@ architecture below is unaffected and remains fully domain-agnostic.
     `crates/atlas-engine/src/ingestion/`. `retrieval` has a real
     `KnowledgeRepository` port with two adapters: `SqliteKnowledgeRepository`
     (SQLite + `sqlite-vec` + FTS5, ADR-0004, real hybrid search via
-    Reciprocal Rank Fusion) and `InMemoryKnowledgeRepository` (zero-I/O
-    test double) — see `crates/atlas-engine/src/retrieval/`.
-    `conversation` and `reporting` remain documented stubs.
+    Reciprocal Rank Fusion, plus `get_document` for citation provenance)
+    and `InMemoryKnowledgeRepository` (zero-I/O test double) — see
+    `crates/atlas-engine/src/retrieval/`. `conversation` has a real
+    `RagAnswerer` composing both sibling contexts' ports into the full
+    answering pipeline, with confidence-gated system prompts and
+    deterministic no-evidence refusal — see
+    `crates/atlas-engine/src/conversation/`. `reporting` remains a
+    documented stub.
   - `crates/atlas-inference-worker` — the isolated llama.cpp FFI adapter
     (ADR-0010), a separate OS process, using `llama-cpp-2`. Needs zero
     literal `unsafe` blocks of its own (the FFI is fully wrapped by
@@ -58,12 +65,14 @@ architecture below is unaffected and remains fully domain-agnostic.
     the Runtime — see "Known open items."
   - `ui/` — React + TypeScript + Vite front end calling `get_app_info`
     end to end.
-  - 171 tests + 1 doc-test passing across the workspace (`cargo test`,
+  - 186 tests + 1 doc-test passing across the workspace (`cargo test`,
     excluding `atlas-app` which can't build in this sandbox — see below),
     including real spawned-worker integration tests, real SQLite +
     `sqlite-vec` + FTS5 integration tests, and real-model validation
     examples (`crates/atlas-engine/examples/validate_runtime.rs`,
-    `validate_embeddings.rs`, `validate_ingestion_pipeline.rs`).
+    `validate_embeddings.rs`, `validate_ingestion_pipeline.rs`,
+    `validate_rag_answering.rs`, `benchmark_retrieval.rs`,
+    `probe_cosine_distribution.rs`).
 - **Architecture:** baselined and extended. See
   `docs/architecture/overview.md` and
   `docs/architecture/runtime-architecture.md`.
@@ -132,11 +141,26 @@ architecture below is unaffected and remains fully domain-agnostic.
   chunks at real corpus scale — that needs a real document corpus with
   known-relevant answers, which doesn't exist yet.
 - **Embedding throughput is the dominant ingest-time cost** (~42
-  ms/chunk on reference hardware, release build) — the current
-  `Worker::embed` design clears the KV cache and re-decodes per text
-  rather than batching multiple sequences in one context. A deliberate
-  simplicity choice, now with a real number to motivate revisiting it —
-  see the retrieval-latency report's "Not yet done."
+  ms/chunk on reference hardware, release build) — multi-sequence
+  batching was tried and **rejected on correctness grounds** (verified:
+  it produced different embeddings for the same text depending on batch
+  composition). The per-text design remains correct; see
+  `Worker::embed`'s doc comment and the retrieval-latency report's
+  "Update, same day" for the full investigation.
+- **`matched_semantic`'s cosine-distance floor is informed by only 5 real
+  measurements** — `sqlite_store.rs`'s `MAX_COSINE_DISTANCE` (0.5) is
+  based on real, measured unrelated-pair similarities (0.29–0.43) from
+  `crates/atlas-engine/examples/probe_cosine_distribution.rs`, not a
+  fabricated number, but 5 pairs is a real-data-informed first pass, not
+  a statistically rigorous calibration. A first, "structural" (distance
+  `< 1.0`) attempt at this was verified wrong in practice before this
+  one replaced it — real embeddings don't scatter around zero similarity
+  for unrelated text the way the math alone suggested they might.
+- **Lexical matching has no stopword handling beyond a small, English-
+  only list** (`sqlite_store.rs`'s `ENGLISH_STOPWORDS`) — added after a
+  real query was found to lexically "match" unrelated corpus text purely
+  by sharing words like "for" and "a." Does not generalize to other
+  languages; real multilingual lexical handling is Phase 7's job.
 
 ## What's next
 

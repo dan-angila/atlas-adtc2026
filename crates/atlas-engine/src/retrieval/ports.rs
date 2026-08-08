@@ -43,16 +43,17 @@ pub enum RetrievalError {
 /// more trustworthy than one found by only one method's blind spot.
 ///
 /// **Caveat:** `matched_semantic` reflects membership in the semantic
-/// leg's fixed-size nearest-neighbor candidate pool, not a similarity
-/// threshold — a k-nearest-neighbor query with `k` larger than the
-/// knowledge base's total chunk count returns *every* chunk, ranked by
-/// distance, with no relevance cutoff. In a knowledge base smaller than
-/// that candidate pool (see `CANDIDATE_OVERSAMPLE_FACTOR`/
-/// `MIN_CANDIDATES` in `sqlite_store.rs`), `matched_semantic` is
-/// trivially `true` for nearly everything and carries little signal;
-/// `matched_lexical` doesn't have this caveat, since FTS5's `MATCH`
-/// only returns chunks that actually contain a query term regardless of
-/// how large the candidate limit is.
+/// leg's fixed-size nearest-neighbor candidate pool, bounded by a
+/// structural (not empirically tuned) cosine-similarity floor —
+/// `sqlite_store.rs`'s `MAX_COSINE_DISTANCE` excludes anything at or
+/// past orthogonal similarity, so a small knowledge base no longer makes
+/// every chunk trivially "match" regardless of relevance (a real failure
+/// mode this project hit and fixed — see that constant's doc comment).
+/// This is still not a precision-tuned relevance signal — only real
+/// tuning against a relevance-judged corpus can make it one — just no
+/// longer meaningless at small scale. `matched_lexical` never had this
+/// caveat: FTS5's `MATCH` only returns chunks that actually contain a
+/// query term, regardless of candidate-pool size.
 #[derive(Debug, Clone, PartialEq)]
 pub struct RetrievedChunk {
     /// The matched chunk, in full — the caller needs its text and
@@ -118,6 +119,23 @@ pub trait KnowledgeRepository: Send + Sync {
         query_embedding: &[f32],
         limit: usize,
     ) -> Result<Vec<RetrievedChunk>, RetrievalError>;
+
+    /// Looks up a document's catalog entry by id — the source of the
+    /// title/source-path half of a citation's provenance, since
+    /// [`RetrievedChunk`] only carries the chunk itself. Returns `None`
+    /// if no document with that id has been stored (should not happen
+    /// for an id that came from this repository's own search results,
+    /// but is not treated as an error — a caller degrading a citation's
+    /// display rather than failing the whole answer is the better
+    /// failure mode for a presentation-layer lookup).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RetrievalError::Storage`] if the lookup itself fails.
+    fn get_document(
+        &self,
+        document_id: atlas_domain::DocumentId,
+    ) -> Result<Option<DocumentRecord>, RetrievalError>;
 }
 
 /// A second, real (not `#[cfg(test)]`-gated) adapter for
@@ -173,6 +191,19 @@ pub mod testing {
                 .expect("in-memory repository mutex poisoned")
                 .push(document.clone());
             Ok(())
+        }
+
+        fn get_document(
+            &self,
+            document_id: atlas_domain::DocumentId,
+        ) -> Result<Option<DocumentRecord>, RetrievalError> {
+            Ok(self
+                .documents
+                .lock()
+                .expect("in-memory repository mutex poisoned")
+                .iter()
+                .find(|document| document.id == document_id)
+                .cloned())
         }
 
         fn store_chunk(
@@ -368,6 +399,25 @@ pub mod testing {
                 checksum: "a".repeat(64),
             };
             repo.store_document(&document).unwrap();
+        }
+
+        #[test]
+        fn get_document_returns_a_stored_document_and_none_for_an_unknown_id() {
+            let repo = InMemoryKnowledgeRepository::new(3);
+            let document = DocumentRecord {
+                id: Id::new(),
+                title: "Test Doc".to_string(),
+                source_path: "/tmp/test.md".into(),
+                format: atlas_domain::DocumentFormat::Markdown,
+                checksum: "a".repeat(64),
+            };
+            repo.store_document(&document).unwrap();
+
+            let found = repo.get_document(document.id).unwrap();
+            assert_eq!(found, Some(document));
+
+            let missing = repo.get_document(Id::new()).unwrap();
+            assert_eq!(missing, None);
         }
     }
 }

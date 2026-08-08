@@ -14,7 +14,7 @@ use std::path::Path;
 use std::sync::{Mutex, MutexGuard, Once};
 
 use atlas_domain::{ChunkRecord, DocumentFormat, DocumentRecord, Id};
-use rusqlite::Connection;
+use rusqlite::{Connection, OptionalExtension};
 use uuid::Uuid;
 
 use super::fusion::{reciprocal_rank_fusion, DEFAULT_RRF_K};
@@ -286,6 +286,42 @@ impl KnowledgeRepository for SqliteKnowledgeRepository {
         }
         Ok(results)
     }
+
+    fn get_document(
+        &self,
+        document_id: atlas_domain::DocumentId,
+    ) -> Result<Option<DocumentRecord>, RetrievalError> {
+        let connection = self.lock();
+        let row = connection
+            .query_row(
+                "SELECT title, source_path, format, checksum FROM documents WHERE document_id = ?1",
+                rusqlite::params![document_id.to_string()],
+                |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, String>(2)?,
+                        row.get::<_, String>(3)?,
+                    ))
+                },
+            )
+            .optional()
+            .map_err(|error| {
+                RetrievalError::Storage(format!("failed to look up document: {error}"))
+            })?;
+
+        let Some((title, source_path, format, checksum)) = row else {
+            return Ok(None);
+        };
+
+        Ok(Some(DocumentRecord {
+            id: document_id,
+            title,
+            source_path: source_path.into(),
+            format: str_to_format(&format)?,
+            checksum,
+        }))
+    }
 }
 
 /// Runs the lexical (FTS5 BM25) leg of a hybrid search, returning
@@ -332,6 +368,33 @@ fn lexical_search(
 /// candidate rowids ordered nearest-first. Uses the `MATCH ... AND k =`
 /// form `vec0` documents as its KNN query syntax — a plain `LIMIT` alone
 /// is not the documented way to bound a `vec0` KNN query.
+///
+/// A k-nearest-neighbor query with no similarity floor always returns
+/// `k` rows regardless of whether any of them are actually similar —
+/// with `k` from [`MIN_CANDIDATES`] and a knowledge base smaller than
+/// that, *every* stored chunk comes back for *any* query, however
+/// unrelated. Verified in practice
+/// (`crates/atlas-engine/examples/validate_rag_answering.rs`: an
+/// off-topic query against a 2-chunk knowledge base was incorrectly
+/// treated as having evidence). [`MAX_COSINE_DISTANCE`] closes that gap.
+///
+/// The first attempt at this used cosine distance `< 1.0` (similarity
+/// `> 0`) as a "structural, not tuned" floor — mathematically
+/// well-motivated (orthogonal-or-worse can't be "similar"), but verified
+/// **wrong in practice**: real embeddings from `nomic-embed-text-v1.5`
+/// don't scatter around zero similarity for unrelated text.
+/// `crates/atlas-engine/examples/probe_cosine_distribution.rs` measured 5
+/// genuinely unrelated real sentence pairs at similarity 0.29–0.43 (mean
+/// 0.36) — a real, positive-similarity floor this specific embedding
+/// model's space has, for reasons not investigated further here (shared
+/// structure across the model's output space is a documented property of
+/// some sentence-embedding models generally). [`MAX_COSINE_DISTANCE`]'s
+/// current value of `0.5` (similarity `> 0.5`) sits above that measured
+/// unrelated-pair ceiling with headroom, informed by 5 real
+/// measurements — not a large-sample statistical calibration, and not a
+/// substitute for real tuning against a relevance-judged corpus (still
+/// listed in the retrieval-latency benchmark's "Not yet done"), but a
+/// real, evidence-based number rather than an unverified guess.
 fn semantic_search(
     connection: &Connection,
     query_embedding: &[f32],
@@ -342,8 +405,13 @@ fn semantic_search(
     })?;
 
     let mut statement = connection
-        .prepare("SELECT rowid FROM chunk_embeddings WHERE embedding MATCH ?1 AND k = ?2 ORDER BY distance")
-        .map_err(|error| RetrievalError::Storage(format!("failed to prepare semantic query: {error}")))?;
+        .prepare(
+            "SELECT rowid, distance FROM chunk_embeddings WHERE embedding MATCH ?1 AND k = ?2 \
+             ORDER BY distance",
+        )
+        .map_err(|error| {
+            RetrievalError::Storage(format!("failed to prepare semantic query: {error}"))
+        })?;
 
     let rowids = statement
         .query_map(
@@ -351,26 +419,78 @@ fn semantic_search(
                 query_embedding_json,
                 i64::try_from(candidate_count).unwrap_or(i64::MAX)
             ],
-            |row| row.get(0),
+            // `distance` is NULL, not a number, when cosine distance is
+            // mathematically undefined — a zero-magnitude query vector,
+            // which has no direction to compare against anything. That
+            // is definitionally "not similar," so it's handled the same
+            // as a too-large distance below, not as a query error.
+            |row| Ok((row.get::<_, i64>(0)?, row.get::<_, Option<f64>>(1)?)),
         )
         .map_err(|error| RetrievalError::Storage(format!("semantic query failed: {error}")))?
-        .collect::<Result<Vec<i64>, _>>()
+        .collect::<Result<Vec<(i64, Option<f64>)>, _>>()
         .map_err(|error| {
             RetrievalError::Storage(format!("failed to read semantic results: {error}"))
-        })?;
+        })?
+        .into_iter()
+        .filter(|(_, distance)| distance.is_some_and(|distance| distance < MAX_COSINE_DISTANCE))
+        .map(|(rowid, _)| rowid)
+        .collect();
 
     Ok(rowids)
 }
 
-/// Turns free-text into an FTS5 query that treats every word as a
-/// literal term (quoted, so FTS5 syntax characters in the source text —
-/// `-`, `"`, `*`, `AND`/`OR`/`NOT` — can't be misread as query
-/// operators), OR-combined for recall — a hybrid-retrieval lexical leg
-/// should cast a wide net and let Reciprocal Rank Fusion (combined with
-/// the semantic leg) do the precision work, rather than requiring every
-/// query word to appear (FTS5's default AND-combination).
+/// Cosine-distance ceiling for a semantic match — `distance_metric=cosine`
+/// in `vec0` ranges `0` (identical) to `2` (opposite), so `0.5` means
+/// "similarity `> 0.5`." Informed by 5 real measured unrelated-pair
+/// similarities (0.29–0.43, mean 0.36) — see [`semantic_search`]'s doc
+/// comment for the full story, including the first (wrong) attempt at
+/// this constant.
+const MAX_COSINE_DISTANCE: f64 = 0.5;
+
+/// A minimal, high-confidence English stopword list — words common
+/// enough that sharing one with a query is not meaningful evidence of
+/// topical relevance (verified in practice:
+/// `crates/atlas-engine/examples/validate_rag_answering.rs` found a
+/// totally unrelated query still registered a lexical "match" purely by
+/// sharing the words "for" and "a" with unrelated corpus text). English-
+/// only and deliberately small — this is not a general-purpose
+/// multilingual stopword solution (FTS5's default tokenizer here isn't
+/// language-aware at all yet), just enough to stop the specific false-
+/// positive this project actually hit. Real multilingual lexical
+/// handling is Phase 7's job, not a silent side effect of this fix.
+const ENGLISH_STOPWORDS: &[&str] = &[
+    "a", "an", "the", "is", "are", "was", "were", "be", "been", "being", "for", "of", "in", "on",
+    "at", "to", "and", "or", "but", "not", "with", "as", "by", "it", "this", "that", "these",
+    "those", "i", "you", "he", "she", "we", "they", "do", "does", "did",
+];
+
+/// Turns free-text into an FTS5 query that treats every non-stopword
+/// word as a literal term (quoted, so FTS5 syntax characters in the
+/// source text — `-`, `"`, `*`, `AND`/`OR`/`NOT` — can't be misread as
+/// query operators), OR-combined for recall — a hybrid-retrieval lexical
+/// leg should cast a wide net and let Reciprocal Rank Fusion (combined
+/// with the semantic leg) do the precision work, rather than requiring
+/// every query word to appear (FTS5's default AND-combination).
+///
+/// If every word in `text` happens to be a stopword, falls back to using
+/// all of them unfiltered — a possibly-noisy match is better than
+/// silently producing an empty lexical query for an otherwise valid
+/// question (e.g. "is it safe?").
 fn fts5_query(text: &str) -> String {
-    text.split_whitespace()
+    let words: Vec<&str> = text.split_whitespace().collect();
+    let content_words: Vec<&str> = words
+        .iter()
+        .copied()
+        .filter(|word| !ENGLISH_STOPWORDS.contains(&word.to_lowercase().as_str()))
+        .collect();
+    let chosen = if content_words.is_empty() {
+        words
+    } else {
+        content_words
+    };
+
+    chosen
+        .into_iter()
         .map(|word| format!("\"{}\"", word.replace('"', "\"\"")))
         .collect::<Vec<_>>()
         .join(" OR ")
@@ -426,6 +546,19 @@ fn format_to_str(format: DocumentFormat) -> &'static str {
     }
 }
 
+fn str_to_format(value: &str) -> Result<DocumentFormat, RetrievalError> {
+    match value {
+        "markdown" => Ok(DocumentFormat::Markdown),
+        "plain_text" => Ok(DocumentFormat::PlainText),
+        "csv" => Ok(DocumentFormat::Csv),
+        "docx" => Ok(DocumentFormat::Docx),
+        "pdf" => Ok(DocumentFormat::Pdf),
+        other => Err(RetrievalError::Storage(format!(
+            "corrupt document format in store: {other:?}"
+        ))),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -459,6 +592,19 @@ mod tests {
             .search("anything", &[0.0, 0.0, 0.0], 5)
             .expect("searching an empty knowledge base must succeed, not error");
         assert!(results.is_empty());
+    }
+
+    #[test]
+    fn get_document_returns_a_stored_document_and_none_for_an_unknown_id() {
+        let repo = SqliteKnowledgeRepository::open_in_memory(3).unwrap();
+        let doc = document();
+        repo.store_document(&doc).unwrap();
+
+        let found = repo.get_document(doc.id).unwrap();
+        assert_eq!(found, Some(doc.clone()));
+
+        let missing = repo.get_document(Id::new()).unwrap();
+        assert_eq!(missing, None);
     }
 
     #[test]
@@ -504,6 +650,38 @@ mod tests {
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].chunk.text, chunk.text);
         assert_eq!(results[0].chunk.heading_path, vec!["Section One"]);
+    }
+
+    #[test]
+    fn sharing_only_common_stopwords_with_a_query_is_not_a_lexical_match() {
+        // Regression test for a real failure caught by
+        // crates/atlas-engine/examples/validate_rag_answering.rs: a
+        // query about a fractured femur registered as lexically
+        // "matching" corpus text about amoxicillin dosage purely because
+        // both contained the words "for" and "a".
+        let repo = SqliteKnowledgeRepository::open_in_memory(3).unwrap();
+        let doc = document();
+        repo.store_document(&doc).unwrap();
+        repo.store_chunk(
+            &chunk_for(doc.id, "the typical adult dose is for a mild infection"),
+            &[0.0, 0.0, 0.0],
+        )
+        .unwrap();
+
+        // Shares only "for" and "a" with the stored chunk — no content
+        // words in common. A zero query vector isolates this to the
+        // lexical leg.
+        let results = repo
+            .search(
+                "recommended treatment for a fractured femur",
+                &[0.0, 0.0, 0.0],
+                10,
+            )
+            .unwrap();
+        assert!(
+            results.is_empty(),
+            "sharing only stopwords must not register as a lexical match"
+        );
     }
 
     #[test]
@@ -617,6 +795,54 @@ mod tests {
 
         let results = repo.search("", &[1.0, 0.0, 0.0], 10).unwrap();
         assert_eq!(results.len(), 1);
+    }
+
+    #[test]
+    fn an_unrelated_query_against_a_tiny_corpus_returns_no_results_not_a_trivial_semantic_match() {
+        // Regression test for a real failure caught by
+        // crates/atlas-engine/examples/validate_rag_answering.rs: with a
+        // knowledge base smaller than the semantic leg's internal
+        // candidate pool (MIN_CANDIDATES), an unbounded k-nearest-
+        // neighbor query used to return every stored chunk regardless of
+        // actual relevance, meaning a totally off-topic query never
+        // produced "no evidence." MAX_COSINE_DISTANCE fixes this; this
+        // test is the exact scenario that exposed the bug, kept as a
+        // permanent guard.
+        let repo = SqliteKnowledgeRepository::open_in_memory(3).unwrap();
+        let doc = document();
+        repo.store_document(&doc).unwrap();
+        // Deliberately no shared words at all with the query below —
+        // not even common connector words — to isolate this test to the
+        // semantic leg specifically. (Naive OR-matched lexical search
+        // treating a shared stopword as a real "match" is a separate,
+        // real, not-yet-addressed gap — see the module-level TODO-style
+        // note near `fts5_query`.)
+        repo.store_chunk(
+            &chunk_for(doc.id, "amoxicillin dosage adults five hundred milligrams"),
+            &[1.0, 0.0, 0.0],
+        )
+        .unwrap();
+        repo.store_chunk(
+            &chunk_for(doc.id, "amoxicillin contraindicated penicillin allergy"),
+            &[0.0, 1.0, 0.0],
+        )
+        .unwrap();
+
+        // Exactly orthogonal to both stored embeddings (cosine
+        // similarity 0 with each).
+        let results = repo
+            .search(
+                "broken leg emergency surgery required immediately",
+                &[0.0, 0.0, 1.0],
+                10,
+            )
+            .unwrap();
+
+        assert!(
+            results.is_empty(),
+            "an orthogonal, lexically-unrelated query must return no results, not every stored \
+             chunk just because the corpus is smaller than the candidate pool"
+        );
     }
 
     #[test]

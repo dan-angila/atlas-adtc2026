@@ -1,16 +1,16 @@
 # RAG Pipeline Design
 
-Status: Design specification, mostly implemented (§2's four
+Status: Design specification, almost entirely implemented (§2's four
 `DocumentParser` adapters — Markdown, CSV, DOCX, PDF — are all real,
 closing Phase 2's format-coverage item; §3's chunker has a real,
 deliberately minimal thin vertical slice — `crates/atlas-engine/src/
 ingestion/` — with placeholder, not benchmarked, chunk-size constants;
-§4–6 — embeddings, storage, hybrid retrieval — are real and proven end
-to end, closing Phase 3's core layer, with one disclosed gap (§4's
-embedding model has not been validated against this project's 24-
-language commitment) and one deferred item (retrieval-quality
-benchmarking needs a real document corpus that doesn't exist yet); §7–8
-— context assembly, citations — remain pre-implementation. See
+§4–8 — embeddings, storage, hybrid retrieval, context assembly, and
+citations — are all real and proven end to end against real components,
+closing Phase 3's core layer and Phase 4 in full, with two disclosed
+gaps: §4's embedding model has not been validated against this
+project's 24-language commitment, and retrieval-quality benchmarking
+still needs a real document corpus that doesn't exist yet. See
 `docs/roadmap/development-roadmap.md`, Phases 3–4)
 Written: 2026-08-04
 
@@ -216,34 +216,54 @@ exists to have something to refuse *from*.
 
 ## 7. Context assembly
 
-Uses the already-implemented `ContextManager`
+**Implemented** — `crates/atlas-engine/src/conversation/rag.rs`'s
+`RagAnswerer`. Uses the already-implemented `ContextManager`
 (`crates/atlas-engine/src/inference/context.rs`) for the budget-fitting
-logic: given the model's context window (from `ModelLoadedInfo`, real,
-not estimated) and a reservation for the response
-(`ContextBudget::reserved_for_response`), retrieved chunks are added to
-the prompt in ranked order until the budget is exhausted — never
-silently truncating a chunk mid-sentence; a chunk that doesn't fit is
-dropped whole, not cut.
+logic exactly as planned: given the model's context window and a
+reservation for the response (`ContextBudget::reserved_for_response`),
+retrieved chunks are added to the prompt in ranked (fused) order until
+the budget is exhausted — never silently truncating a chunk mid-sentence;
+a chunk that doesn't fit is dropped whole, and the next, possibly
+smaller, candidate is tried.
 
 **Prompt construction:** retrieved chunks are assembled into a
-structured prompt (system instructions + retrieved context + citation
-markers + user query) before being sent through the existing
-`InferenceEngine::generate` path — no new inference-side plumbing
-needed, only new content flowing into the `prompt: String` field that
-already exists in `GenerateSpec`.
+structured prompt (confidence-appropriate system instructions +
+retrieved evidence + user query) before being sent through the existing
+`InferenceEngine::generate` path — no new inference-side plumbing needed,
+exactly as planned. The system preamble itself is confidence-gated
+(Phase 5's evidence-gated generation): Strong evidence gets a direct-
+answer-and-cite instruction; Weak evidence gets an explicit uncertainty
+instruction; `NoEvidence` skips generation entirely (§8 below is the
+important part of that case — no model call happens at all).
 
 ## 8. Response citations
 
-Every retrieved chunk used in the assembled prompt carries a citation
-marker (a stable, short reference like `[1]`, `[2]`) tied back to its
-`chunks.id` / provenance metadata (§3). The generation prompt instructs
-the model to reference these markers inline. After generation, the
-Conversation & Session context (Phase 5) is responsible for rendering
-markers as clickable references back to the source document/section —
-this document only specifies that the *data* needed for that (chunk
-provenance, stable marker-to-chunk mapping) exists by the time a response
-reaches that layer; the rendering itself is a UX concern (see
-`docs/design/ux-specification.md`).
+**Implemented** — `RagAnswerer::answer` returns citations
+(`document_id`, `chunk_id`, document title, heading path) *before* the
+first generated token arrives, built entirely from the retrieval layer's
+own stored records via `KnowledgeRepository::get_document`, never parsed
+out of anything the model generates. A caller can render "Sources:"
+immediately alongside the streaming answer, keeping retrieved evidence
+and generated text visibly separate, per this document's original intent
+that citation data exist independently of the generation step.
+
+**Refusal, not just citation, for the no-evidence case:** when retrieval
+confidence is `NoEvidence`, `RagAnswerer::answer` returns
+`QueryOutcome::Refused` and never calls `InferenceEngine::generate` at
+all — a deterministic refusal, not a citation-free answer the model
+might still attempt. This was verified against a *known, real* failure
+mode, not just tested in the abstract: an early implementation's
+"no evidence" detection relied on `sqlite-vec` k-nearest-neighbor search
+alone, which (with no similarity floor) returns every stored chunk
+regardless of relevance once a knowledge base is smaller than the
+internal candidate pool — an off-topic real query against a real 2-chunk
+knowledge base was incorrectly treated as having evidence until this was
+caught by `crates/atlas-engine/examples/validate_rag_answering.rs` and
+fixed with a real, measured cosine-similarity floor (see
+`sqlite_store.rs`'s `MAX_COSINE_DISTANCE` and
+`crates/atlas-engine/examples/probe_cosine_distribution.rs`). A second,
+related bug (naive lexical OR-matching treating shared English stopwords
+as a real match) was caught and fixed the same way.
 
 **Why this matters more than it might seem:** an enterprise user's trust
 in an offline assistant handling their own documents hinges on being able

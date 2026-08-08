@@ -180,23 +180,44 @@ met**: latency is measured; quality is not yet, pending a real document
 corpus and relevance judgments (see the "Not yet done" section of the
 latency report).
 
-## Phase 4 — Inference, Generation & RAM Tiering
+## Phase 4 — Inference, Generation & RAM Tiering *(RAG prompt assembly done)*
 
 - [ ] RAM-tier detection and automatic model/quantization selection
       (ADR-0006)
-- [ ] RAG prompt assembly (retrieved context + query → generation)
+- [x] RAG prompt assembly (retrieved context + query → generation) —
+      `crates/atlas-engine/src/conversation/rag.rs`'s `RagAnswerer`:
+      embed → retrieve → assess confidence → select evidence within a
+      token budget (reusing the existing `ContextManager`, no second
+      budget mechanism) → confidence-gated grounded prompt → generate,
+      or refuse outright with no evidence. Proven end to end against real
+      models (`crates/atlas-engine/examples/validate_rag_answering.rs`):
+      a real question got a real cited answer from real evidence, and a
+      real off-topic question was correctly refused rather than
+      answered. Two real bugs were found and fixed via that real
+      end-to-end run, not caught by unit tests against fakes alone — see
+      `docs/design/rag-pipeline.md` §8.
 - [ ] First full accuracy/throughput/RAM benchmark across defined tiers on
       reference hardware, checked into `/benchmarks` and `/evaluation`
 
 **Exit criteria:** the system answers a question about an ingested
 document, end-to-end, within the performance goals defined in
 `docs/engineering-standards.md`, on a machine matching the competition's
-minimum spec — verified, not estimated.
+minimum spec — verified, not estimated. **Partially met**: the
+end-to-end answer path is real and verified; the reference-hardware
+performance-goal measurement is not (RAM-tier detection and the full
+tiered benchmark remain open above).
 
-## Phase 5 — Conversation & Session
+## Phase 5 — Conversation & Session *(citation tracking done; session persistence remains)*
 
-- [ ] Multi-turn context management with citation tracking back to source
-      chunks (trust/UX requirement for enterprise document use)
+- [x] Citation tracking back to source chunks (trust/UX requirement for
+      enterprise document use) — `RagAnswerer::answer` returns citations
+      (document id, chunk id, document title, heading path) before the
+      first generated token arrives, built from the retrieval layer's
+      own stored records, never parsed out of generated text. See
+      `docs/design/rag-pipeline.md` §8.
+- [ ] Multi-turn context management — `RagAnswerer` today answers one
+      query at a time; genuine multi-turn state (conversation history
+      folded into the prompt budget) is not yet built.
 - [ ] Session persistence and retention policy defined and implemented
 
 **Exit criteria:** a multi-turn conversation correctly maintains context
