@@ -194,6 +194,37 @@ pub mod testing {
     };
     use crate::inference::streaming::{self, GenerationSummary, TokenStream};
 
+    /// Vector width [`word_bucket_embedding`] produces.
+    const WORD_BUCKET_COUNT: u32 = 16;
+
+    /// A deterministic, content-differentiated pseudo-embedding for
+    /// tests: hashes each lowercased word of `text` into one of
+    /// [`WORD_BUCKET_COUNT`] buckets and counts occurrences per bucket.
+    /// Unlike a fixed-shape stand-in (e.g. "vector of `text.len()`
+    /// repeated"), texts sharing vocabulary land in similar buckets and
+    /// score a real, meaningfully higher cosine similarity than texts
+    /// that don't — exactly the property tests of confidence-gating
+    /// logic need, without depending on a real embedding model. This is
+    /// a toy bag-of-words scheme, not a semantic model — it cannot
+    /// capture synonymy or paraphrase the way a real embedding does, so
+    /// it's a fit for testing *orchestration* logic (does confidence
+    /// correctly differentiate matching from non-matching content), not
+    /// a stand-in for real embedding-quality testing (which needs the
+    /// real model — see `crates/atlas-engine/examples/validate_embeddings.rs`
+    /// and friends).
+    fn word_bucket_embedding(text: &str) -> Vec<f32> {
+        let mut buckets = vec![0.0f32; WORD_BUCKET_COUNT as usize];
+        for word in text.split_whitespace() {
+            let lower = word.to_lowercase();
+            let hash = lower.bytes().fold(0u32, |acc, byte| {
+                acc.wrapping_mul(31).wrapping_add(u32::from(byte))
+            });
+            let bucket = (hash % WORD_BUCKET_COUNT) as usize;
+            buckets[bucket] += 1.0;
+        }
+        buckets
+    }
+
     /// An in-process [`InferenceEngine`] that generates a fixed,
     /// configurable response instead of running real inference.
     pub struct FakeInferenceEngine {
@@ -245,16 +276,14 @@ pub mod testing {
             if !self.embedding_loaded.load(Ordering::SeqCst) {
                 return Err(InferenceEngineError::NotLoaded);
             }
-            // Fixed-width fake vectors, deterministic from text length so
-            // tests can assert on more than just the shape.
             let vectors = spec
                 .texts
                 .iter()
-                .map(|text| vec![text.len() as f32; 8])
+                .map(|text| word_bucket_embedding(text))
                 .collect();
             Ok(EmbeddingBatch {
                 vectors,
-                embedding_dimension: 8,
+                embedding_dimension: WORD_BUCKET_COUNT,
             })
         }
 
@@ -387,7 +416,7 @@ pub mod testing {
                 })
                 .unwrap();
             assert_eq!(batch.vectors.len(), 2);
-            assert_eq!(batch.embedding_dimension, 8);
+            assert_eq!(batch.embedding_dimension, 16);
             assert_ne!(batch.vectors[0], batch.vectors[1]);
         }
     }

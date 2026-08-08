@@ -447,30 +447,15 @@ fn semantic_search(
 /// this constant.
 const MAX_COSINE_DISTANCE: f64 = 0.5;
 
-/// A minimal, high-confidence English stopword list — words common
-/// enough that sharing one with a query is not meaningful evidence of
-/// topical relevance (verified in practice:
-/// `crates/atlas-engine/examples/validate_rag_answering.rs` found a
-/// totally unrelated query still registered a lexical "match" purely by
-/// sharing the words "for" and "a" with unrelated corpus text). English-
-/// only and deliberately small — this is not a general-purpose
-/// multilingual stopword solution (FTS5's default tokenizer here isn't
-/// language-aware at all yet), just enough to stop the specific false-
-/// positive this project actually hit. Real multilingual lexical
-/// handling is Phase 7's job, not a silent side effect of this fix.
-const ENGLISH_STOPWORDS: &[&str] = &[
-    "a", "an", "the", "is", "are", "was", "were", "be", "been", "being", "for", "of", "in", "on",
-    "at", "to", "and", "or", "but", "not", "with", "as", "by", "it", "this", "that", "these",
-    "those", "i", "you", "he", "she", "we", "they", "do", "does", "did",
-];
-
 /// Turns free-text into an FTS5 query that treats every non-stopword
 /// word as a literal term (quoted, so FTS5 syntax characters in the
 /// source text — `-`, `"`, `*`, `AND`/`OR`/`NOT` — can't be misread as
 /// query operators), OR-combined for recall — a hybrid-retrieval lexical
 /// leg should cast a wide net and let Reciprocal Rank Fusion (combined
 /// with the semantic leg) do the precision work, rather than requiring
-/// every query word to appear (FTS5's default AND-combination).
+/// every query word to appear (FTS5's default AND-combination). Shared
+/// stopword handling: see [`super::ENGLISH_STOPWORDS`] for why it exists
+/// and its documented limitations.
 ///
 /// If every word in `text` happens to be a stopword, falls back to using
 /// all of them unfiltered — a possibly-noisy match is better than
@@ -481,7 +466,7 @@ fn fts5_query(text: &str) -> String {
     let content_words: Vec<&str> = words
         .iter()
         .copied()
-        .filter(|word| !ENGLISH_STOPWORDS.contains(&word.to_lowercase().as_str()))
+        .filter(|word| !super::ENGLISH_STOPWORDS.contains(&word.to_lowercase().as_str()))
         .collect();
     let chosen = if content_words.is_empty() {
         words

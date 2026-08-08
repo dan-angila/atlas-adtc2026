@@ -151,6 +151,7 @@ pub mod testing {
 
     use super::{KnowledgeRepository, RetrievalError, RetrievedChunk};
     use crate::retrieval::fusion::{reciprocal_rank_fusion, DEFAULT_RRF_K};
+    use crate::retrieval::ENGLISH_STOPWORDS;
 
     struct StoredChunk {
         chunk: ChunkRecord,
@@ -266,6 +267,16 @@ pub mod testing {
                         cosine_similarity(query_embedding, &stored.embedding),
                     )
                 })
+                // Same reasoning as `SqliteKnowledgeRepository`'s
+                // `MAX_COSINE_DISTANCE`: with no similarity floor at all,
+                // *every* stored chunk "matches" *any* query regardless
+                // of relevance, which makes `NoEvidence` unreachable for
+                // any non-empty knowledge base. `0.0` here (not the real
+                // adapter's measured `0.5`) is a floor appropriate to
+                // this double's own toy bag-of-words embedding scheme,
+                // not a recalibration for real embedding geometry — see
+                // `word_bucket_embedding`'s doc comment.
+                .filter(|(_, similarity)| *similarity > MIN_SEMANTIC_SIMILARITY)
                 .collect();
             semantic_ranked
                 .sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
@@ -297,13 +308,28 @@ pub mod testing {
         }
     }
 
+    /// A floor on `word_bucket_embedding` cosine similarity, appropriate
+    /// to that toy scheme's own geometry (not a recalibration of the
+    /// real adapter's measured `0.5` — see that comment above). With 16
+    /// buckets, a small amount of incidental hash-collision overlap
+    /// between texts with genuinely disjoint vocabulary is expected and
+    /// must not itself register as a match.
+    const MIN_SEMANTIC_SIMILARITY: f32 = 0.3;
+
+    /// Case-insensitive whole-word overlap count between `query` and
+    /// `text`, ignoring common English stopwords
+    /// ([`crate::retrieval::ENGLISH_STOPWORDS`]) on the query side — a
+    /// query word must actually appear as one of `text`'s own words, not
+    /// merely as a substring of it (a raw substring check would let a
+    /// single letter "match" almost anything).
     fn lexical_overlap_score(query: &str, text: &str) -> usize {
-        let query_words: std::collections::HashSet<String> =
-            query.split_whitespace().map(str::to_lowercase).collect();
-        let text_lower = text.to_lowercase();
-        query_words
-            .iter()
-            .filter(|word| text_lower.contains(word.as_str()))
+        let text_words: std::collections::HashSet<String> =
+            text.split_whitespace().map(str::to_lowercase).collect();
+        query
+            .split_whitespace()
+            .map(str::to_lowercase)
+            .filter(|word| !ENGLISH_STOPWORDS.contains(&word.as_str()))
+            .filter(|word| text_words.contains(word))
             .count()
     }
 

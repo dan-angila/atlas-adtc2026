@@ -29,3 +29,22 @@ pub mod sqlite_store;
 pub use confidence::{assess_confidence, RetrievalConfidence};
 pub use ports::{KnowledgeRepository, RetrievalError, RetrievedChunk};
 pub use sqlite_store::SqliteKnowledgeRepository;
+
+/// A minimal, high-confidence English stopword list, shared by both
+/// [`KnowledgeRepository`] adapters — words common enough that sharing
+/// one with a query is not meaningful evidence of topical relevance.
+/// Added after a real, verified failure: a totally unrelated query
+/// registered as a lexical "match" purely by sharing the words "for" and
+/// "a" with unrelated corpus text
+/// (`crates/atlas-engine/examples/validate_rag_answering.rs`). English-
+/// only and deliberately small — this is not a general-purpose
+/// multilingual stopword solution (neither adapter's lexical matching is
+/// language-aware yet), just enough to stop the specific class of false
+/// positive this project actually hit. Real multilingual lexical
+/// handling is Phase 7's job, not a silent side effect of this fix.
+pub(crate) const ENGLISH_STOPWORDS: &[&str] = &[
+    "a", "an", "the", "is", "are", "was", "were", "be", "been", "being", "for", "of", "in", "on",
+    "at", "to", "and", "or", "but", "not", "with", "as", "by", "it", "this", "that", "these",
+    "those", "i", "you", "he", "she", "we", "they", "do", "does", "did", "what", "which", "who",
+    "whom", "when", "where", "why", "how",
+];

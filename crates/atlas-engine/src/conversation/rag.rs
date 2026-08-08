@@ -298,8 +298,8 @@ mod tests {
     use crate::inference::ports::{LoadModelSpec, ModelRole};
     use crate::retrieval::ports::testing::InMemoryKnowledgeRepository;
 
-    // Must match `FakeInferenceEngine::embed`'s hardcoded output width.
-    const DIMENSION: usize = 8;
+    // Must match `word_bucket_embedding`'s output width.
+    const DIMENSION: usize = 16;
 
     fn chunk(document_id: DocumentId, text: &str, heading: &str) -> ChunkRecord {
         ChunkRecord {
@@ -380,7 +380,7 @@ mod tests {
 
     #[test]
     fn strong_evidence_answers_with_citations_and_a_direct_preamble() {
-        let (_inference, knowledge, answerer) =
+        let (inference, knowledge, answerer) =
             loaded_answerer(vec!["Adults should take 500mg.".to_string()], true, true);
 
         let document = DocumentRecord {
@@ -392,8 +392,20 @@ mod tests {
         };
         knowledge.store_document(&document).unwrap();
         let evidence_chunk = chunk(document.id, "amoxicillin dosage guidance", "Adult Dosage");
+        // Embed the chunk through the same fake the query will be
+        // embedded through, exactly as production does — a hand-picked
+        // vector wouldn't reliably share vocabulary-derived buckets with
+        // the query's own real (fake-)embedding.
+        let evidence_vector = inference
+            .embed(crate::inference::ports::EmbedSpec {
+                texts: vec![evidence_chunk.text.clone()],
+                thread_count: 4,
+            })
+            .unwrap()
+            .vectors
+            .remove(0);
         knowledge
-            .store_chunk(&evidence_chunk, &[1.0; DIMENSION])
+            .store_chunk(&evidence_chunk, &evidence_vector)
             .unwrap();
 
         let outcome = answerer
