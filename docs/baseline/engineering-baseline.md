@@ -73,7 +73,8 @@ architecture below is unaffected and remains fully domain-agnostic.
     `validate_embeddings.rs`, `validate_ingestion_pipeline.rs`,
     `validate_rag_answering.rs`, `benchmark_retrieval.rs`,
     `probe_cosine_distribution.rs`, `build_healthcare_corpus.rs`,
-    `validate_healthcare_corpus_safety.rs`).
+    `validate_healthcare_corpus_safety.rs`,
+    `validate_multilingual_registry.rs`).
 - **Architecture:** baselined and extended. See
   `docs/architecture/overview.md` and
   `docs/architecture/runtime-architecture.md`.
@@ -192,6 +193,20 @@ architecture below is unaffected and remains fully domain-agnostic.
   enough to need IDF-style term weighting instead of a stopword list is a
   real possibility as more content is added. Does not generalize to other
   languages; real multilingual lexical handling is Phase 7's job.
+- **The 24-language Language Registry is registered metadata, not
+  validated generation capability — and real testing shows the gap is
+  large.** `docs/evaluation/multilingual-validation-2026-08.md`: real
+  Qwen3-4B (Q4_K_M) generation was tested against all 24 registered
+  languages with an explicit "respond only in X" instruction. Only
+  English (verifiable directly) and, on qualitative review, Russian and
+  Chinese produced substantial, coherent, on-topic text in the requested
+  language. Roughly half of the 24 — including 9 of the 16 Africa-pack
+  languages (Arabic, Hausa, Luganda, Dholuo, Kinyarwanda, Xhosa, Zulu
+  outright; Kirundi and Shona via degenerate repetition loops) — got a
+  complete, fluent answer in **English**, ignoring the explicit
+  instruction not to. Do not cite "24 languages" as a working capability
+  anywhere in submission material without qualifying it with this
+  finding.
 - **`FakeInferenceEngine`'s original embedding scheme could not
   represent "unrelated content" at all** (every non-empty text produced
   a vector parallel to every other — cosine similarity always exactly

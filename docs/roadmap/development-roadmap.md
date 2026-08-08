@@ -53,7 +53,22 @@ Stand up the Rust workspace and prove the hexagonal boundaries from
       (Model Registry, GGUF Inspector, Memory Manager, Thread Scheduler,
       Language Registry, Offline Policy Engine, Benchmark Engine,
       Metrics Collector, Error Recovery, Streaming Engine, Context
-      Manager). See `docs/architecture/runtime-architecture.md`.
+      Manager). See `docs/architecture/runtime-architecture.md`. The
+      Language Registry holds 24 registered languages as **data**
+      (code, names, direction) — this is not itself a claim that
+      generation works in all 24; see the real validation result below.
+- [x] Real generation validation of the Language Registry's 24
+      languages — `crates/atlas-engine/examples/validate_multilingual_registry.rs`,
+      results in
+      `docs/evaluation/multilingual-validation-2026-08.md`. **Largely
+      negative, reported honestly rather than assumed positive from
+      registration alone**: only English, Russian, and Chinese produced
+      substantial, coherent, on-topic real-language output against real
+      Qwen3-4B; roughly half of the 24 (including 9 of 16 Africa-pack
+      languages) answered entirely in English despite an explicit
+      instruction not to, or produced degenerate repetition. Do not cite
+      "24 languages" as working generation capability without this
+      qualifier.
 - [x] Loaded a real GGUF model (Qwen2.5-0.5B-Instruct Q4_K_M) and
       generated a real, correct completion end-to-end through the full
       domain → port → IPC → FFI → llama.cpp path — see

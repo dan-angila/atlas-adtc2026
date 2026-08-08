@@ -41,7 +41,16 @@ this directory is where "wrong" gets measured and tracked.
 
 ## Status
 
-No evaluation methodology or results exist yet. A defined evaluation
+[`multilingual-validation-2026-08.md`](multilingual-validation-2026-08.md)
+is the first real evaluation entry: a mechanical + qualitative review of
+real Qwen3-4B generation across all 24 Language Registry entries. The
+headline finding is largely negative — do not read "24 languages
+registered" anywhere in this codebase as "24 languages work"; see that
+report before citing multilingual capability in any submission
+material.
+
+Retrieval-quality and RAG-answer-accuracy evaluation (the rest of this
+directory's stated scope) do not exist yet. A defined evaluation
 approach is a named exit criterion for Phase 3 (Knowledge Retrieval) and
 Phase 7 (Reporting & Authoring) in
 `docs/roadmap/development-roadmap.md`.
