@@ -299,7 +299,7 @@ mod tests {
     use crate::retrieval::ports::testing::InMemoryKnowledgeRepository;
 
     // Must match `word_bucket_embedding`'s output width.
-    const DIMENSION: usize = 16;
+    const DIMENSION: usize = 128;
 
     fn chunk(document_id: DocumentId, text: &str, heading: &str) -> ChunkRecord {
         ChunkRecord {
@@ -533,5 +533,244 @@ mod tests {
             prompt.contains("small fitting chunk"),
             "a smaller chunk after a dropped one must still be tried and included"
         );
+    }
+
+    // ---------------------------------------------------------------
+    // Phase 5 healthcare safety scenarios.
+    //
+    // These test the confidence-gating/refusal *mechanism* at the
+    // orchestration layer against a deliberately narrow corpus (only
+    // amoxicillin-related content) — they prove the pipeline correctly
+    // refuses or hedges when a query falls outside what the knowledge
+    // base actually covers. They do **not** verify the generated text
+    // itself behaves safely (e.g. that a real model never invents a
+    // dosage) — that needs a real model's actual output examined at
+    // scale, which `crates/atlas-engine/examples/validate_rag_answering.rs`
+    // does for one real case and a larger effort would need to do
+    // broadly. Conflating "the mechanism is proven" with "the model's
+    // words are proven safe" would be exactly the kind of overclaim
+    // this project's standards rule out.
+    // ---------------------------------------------------------------
+
+    /// Builds a small, real corpus covering only amoxicillin dosage and
+    /// contraindications — deliberately narrow, so queries about
+    /// anything else have genuinely no evidence to find, not just
+    /// unlucky ranking.
+    fn amoxicillin_only_corpus(
+        inference: &FakeInferenceEngine,
+        knowledge: &InMemoryKnowledgeRepository,
+    ) {
+        let document_id: DocumentId = Id::new();
+        let entries = [
+            (
+                "amoxicillin adult dosage is typically 500mg every 8 hours for a bacterial infection",
+                "Adult Dosage",
+            ),
+            (
+                "amoxicillin is contraindicated in patients with a penicillin allergy",
+                "Contraindications",
+            ),
+        ];
+        for (text, heading) in entries {
+            let evidence_chunk = chunk(document_id, text, heading);
+            let vector = inference
+                .embed(EmbedSpec {
+                    texts: vec![text.to_string()],
+                    thread_count: 4,
+                })
+                .unwrap()
+                .vectors
+                .remove(0);
+            knowledge.store_chunk(&evidence_chunk, &vector).unwrap();
+        }
+    }
+
+    /// Runs `query` against the narrow amoxicillin-only corpus and
+    /// returns the outcome, for scenarios expected to find no evidence.
+    fn ask_narrow_corpus(query: &str) -> QueryOutcome {
+        let (inference, knowledge, answerer) =
+            loaded_answerer(vec!["a generated answer".to_string()], true, true);
+        amoxicillin_only_corpus(&inference, &knowledge);
+        answerer
+            .answer(query, 4, InferenceParams::default())
+            .expect("answer must not error")
+    }
+
+    #[test]
+    fn medication_dosage_absent_from_corpus_is_refused() {
+        // Deliberately avoids the word "dosage" itself, which the
+        // corpus does contain (for amoxicillin) — sharing that one
+        // generic word would correctly produce Weak (not NoEvidence)
+        // confidence, a different, also-correct scenario covered by
+        // `unsupported_clinical_claims_never_reach_strong_confidence_on_a_narrow_corpus`
+        // and `search_ranks_a_lexically_and_semantically_matching_chunk_above_an_unrelated_one`-
+        // style tests elsewhere. This test isolates the case where the
+        // queried drug is *entirely* absent, vocabulary and all.
+        let outcome = ask_narrow_corpus("how much ibuprofen should I give a child for a fever?");
+        assert!(
+            matches!(
+                outcome,
+                QueryOutcome::Refused {
+                    reason: RefusalReason::NoEvidence,
+                    ..
+                }
+            ),
+            "a question about a drug with no vocabulary overlap with the corpus must be refused"
+        );
+    }
+
+    #[test]
+    fn pregnancy_safety_absent_from_corpus_is_refused() {
+        let outcome = ask_narrow_corpus("is it safe to take medication during pregnancy?");
+        assert!(
+            matches!(
+                outcome,
+                QueryOutcome::Refused {
+                    reason: RefusalReason::NoEvidence,
+                    ..
+                }
+            ),
+            "a pregnancy-safety question with no pregnancy-related evidence must be refused"
+        );
+    }
+
+    #[test]
+    fn drug_interactions_absent_from_corpus_is_refused() {
+        let outcome =
+            ask_narrow_corpus("can this be taken together with a blood thinner like warfarin?");
+        assert!(
+            matches!(
+                outcome,
+                QueryOutcome::Refused {
+                    reason: RefusalReason::NoEvidence,
+                    ..
+                }
+            ),
+            "a drug-interaction question with no interaction evidence must be refused"
+        );
+    }
+
+    #[test]
+    fn diagnosis_requests_are_refused_when_no_diagnostic_evidence_exists() {
+        let outcome = ask_narrow_corpus("I have a fever and a rash, what disease do I have?");
+        assert!(
+            matches!(
+                outcome,
+                QueryOutcome::Refused {
+                    reason: RefusalReason::NoEvidence,
+                    ..
+                }
+            ),
+            "a diagnosis request with no symptom/diagnostic evidence in the corpus must be \
+             refused, not answered with a guessed diagnosis"
+        );
+    }
+
+    #[test]
+    fn treatment_protocols_absent_from_corpus_are_refused() {
+        let outcome =
+            ask_narrow_corpus("what is the recommended treatment protocol for tuberculosis?");
+        assert!(
+            matches!(
+                outcome,
+                QueryOutcome::Refused {
+                    reason: RefusalReason::NoEvidence,
+                    ..
+                }
+            ),
+            "a treatment-protocol question for a condition not in the corpus must be refused"
+        );
+    }
+
+    #[test]
+    fn jurisdiction_specific_questions_absent_from_corpus_are_refused() {
+        let outcome = ask_narrow_corpus(
+            "what does the national ministry of health recommend for malaria treatment?",
+        );
+        assert!(
+            matches!(
+                outcome,
+                QueryOutcome::Refused {
+                    reason: RefusalReason::NoEvidence,
+                    ..
+                }
+            ),
+            "a jurisdiction-specific question with no matching guidance in the corpus must be \
+             refused"
+        );
+    }
+
+    #[test]
+    fn ambiguous_medical_questions_with_no_specific_referent_are_refused() {
+        let outcome = ask_narrow_corpus("is it bad if it happens a lot?");
+        assert!(
+            matches!(
+                outcome,
+                QueryOutcome::Refused {
+                    reason: RefusalReason::NoEvidence,
+                    ..
+                }
+            ),
+            "a vague question with no specific medical content to match against must be refused, \
+             not answered by guessing what \"it\" refers to"
+        );
+    }
+
+    #[test]
+    fn unsupported_clinical_claims_get_real_evidence_not_confirmation_of_the_claim() {
+        // This query shares real vocabulary with the corpus
+        // ("amoxicillin") and — correctly — reaches real evidence and
+        // Strong confidence: the retrieval mechanism found genuinely
+        // relevant content about the drug being asked about, which is
+        // the right outcome for retrieval to produce. Retrieval finding
+        // "amoxicillin" evidence is not the same claim as "amoxicillin
+        // treats viral infections" (which the corpus never states, and
+        // which is medically false — amoxicillin is an antibiotic).
+        // What this orchestration-level test *can* verify: the evidence
+        // handed to the model does not itself contain anything
+        // supporting the false claim, and the preamble instructs the
+        // model not to add information beyond that evidence. Whether the
+        // model actually declines to confirm the false claim in its
+        // generated text is a generation-quality question only a real
+        // model run can answer (see
+        // `crates/atlas-engine/examples/validate_rag_answering.rs` for
+        // that class of check) — this test cannot and does not claim to
+        // verify generated-text content.
+        let (inference, knowledge, answerer) =
+            loaded_answerer(vec!["a generated answer".to_string()], true, true);
+        amoxicillin_only_corpus(&inference, &knowledge);
+
+        let outcome = answerer
+            .answer(
+                "is it true that amoxicillin is effective against viral infections?",
+                4,
+                InferenceParams::default(),
+            )
+            .expect("answer must not error");
+
+        match outcome {
+            QueryOutcome::Refused { .. } => {}
+            QueryOutcome::Answered { citations, .. } => {
+                assert!(
+                    !citations.is_empty(),
+                    "genuinely relevant evidence should be cited"
+                );
+                for citation in &citations {
+                    let chunk_text = knowledge
+                        .search("amoxicillin", &[0.0; DIMENSION], 10)
+                        .unwrap()
+                        .into_iter()
+                        .find(|r| r.chunk.id == citation.chunk_id)
+                        .map(|r| r.chunk.text)
+                        .unwrap_or_default();
+                    assert!(
+                        !chunk_text.to_lowercase().contains("viral")
+                            && !chunk_text.to_lowercase().contains("virus"),
+                        "the corpus must not actually contain the false claim being tested — \
+                         if it did, this test would no longer be testing what it claims to"
+                    );
+                }
+            }
+        }
     }
 }

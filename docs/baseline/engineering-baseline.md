@@ -157,10 +157,20 @@ architecture below is unaffected and remains fully domain-agnostic.
   one replaced it — real embeddings don't scatter around zero similarity
   for unrelated text the way the math alone suggested they might.
 - **Lexical matching has no stopword handling beyond a small, English-
-  only list** (`sqlite_store.rs`'s `ENGLISH_STOPWORDS`) — added after a
-  real query was found to lexically "match" unrelated corpus text purely
-  by sharing words like "for" and "a." Does not generalize to other
-  languages; real multilingual lexical handling is Phase 7's job.
+  only list** (`retrieval::ENGLISH_STOPWORDS`, shared by both
+  `KnowledgeRepository` adapters) — added after a real query was found
+  to lexically "match" unrelated corpus text purely by sharing words
+  like "for" and "a." Does not generalize to other languages; real
+  multilingual lexical handling is Phase 7's job.
+- **`FakeInferenceEngine`'s original embedding scheme could not
+  represent "unrelated content" at all** (every non-empty text produced
+  a vector parallel to every other — cosine similarity always exactly
+  1.0), which was only discovered while trying to write the Phase 5
+  healthcare-safety refusal test suite. Replaced with
+  `word_bucket_embedding`, a deterministic bag-of-words toy scheme
+  (128 buckets, English stopwords excluded) — real vocabulary
+  differentiation for testing *orchestration* logic, explicitly not a
+  stand-in for real embedding-quality testing.
 
 ## What's next
 

@@ -215,6 +215,20 @@ tiered benchmark remain open above).
       first generated token arrives, built from the retrieval layer's
       own stored records, never parsed out of generated text. See
       `docs/design/rag-pipeline.md` §8.
+- [x] Healthcare-safety refusal/evidence-gating test suite —
+      `crates/atlas-engine/src/conversation/rag.rs`'s `mod tests`
+      "Phase 5 healthcare safety scenarios": medication dosage absent,
+      pregnancy safety absent, drug interactions absent, diagnosis
+      requests, treatment protocols absent, jurisdiction-specific
+      questions absent, ambiguous questions, and unsupported clinical
+      claims. Verifies the confidence-gating *mechanism* correctly
+      refuses or hedges for each scenario against a deliberately narrow
+      corpus — it does **not** verify generated-text content is safe at
+      scale, which needs real-model runs beyond the one case
+      `validate_rag_answering.rs` covers. Building these tests required
+      fixing the test doubles themselves first (see the "Known open
+      items" note on `word_bucket_embedding`/`ENGLISH_STOPWORDS`) —
+      the original fakes could not represent "unrelated content" at all.
 - [ ] Multi-turn context management — `RagAnswerer` today answers one
       query at a time; genuine multi-turn state (conversation history
       folded into the prompt budget) is not yet built.

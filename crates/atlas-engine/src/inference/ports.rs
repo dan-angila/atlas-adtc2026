@@ -195,27 +195,48 @@ pub mod testing {
     use crate::inference::streaming::{self, GenerationSummary, TokenStream};
 
     /// Vector width [`word_bucket_embedding`] produces.
-    const WORD_BUCKET_COUNT: u32 = 16;
+    const WORD_BUCKET_COUNT: u32 = 128;
+
+    /// Stopwords excluded from [`word_bucket_embedding`] — without this,
+    /// two genuinely unrelated texts still share common connector words
+    /// ("is," "for," "a," "of"), inflating their bucket overlap and
+    /// cosine similarity for reasons that have nothing to do with topic.
+    /// Verified in practice: an earlier version without this filtering
+    /// let every tested "no evidence" scenario in
+    /// `crate::conversation::rag`'s test suite reach `Strong` confidence
+    /// regardless of actual topic. Deliberately a small, separate list
+    /// from [`crate::retrieval::ENGLISH_STOPWORDS`] rather than importing
+    /// it — this is test-only realism for a toy scheme in a different
+    /// bounded context, not a real cross-context dependency.
+    const TESTING_STOPWORDS: &[&str] = &[
+        "a", "an", "the", "is", "are", "was", "were", "for", "of", "in", "on", "at", "to", "and",
+        "or", "but", "with", "as", "by", "it", "this", "that", "what", "which", "how", "does",
+        "do", "did", "have", "has",
+    ];
 
     /// A deterministic, content-differentiated pseudo-embedding for
-    /// tests: hashes each lowercased word of `text` into one of
-    /// [`WORD_BUCKET_COUNT`] buckets and counts occurrences per bucket.
-    /// Unlike a fixed-shape stand-in (e.g. "vector of `text.len()`
-    /// repeated"), texts sharing vocabulary land in similar buckets and
-    /// score a real, meaningfully higher cosine similarity than texts
-    /// that don't — exactly the property tests of confidence-gating
-    /// logic need, without depending on a real embedding model. This is
-    /// a toy bag-of-words scheme, not a semantic model — it cannot
-    /// capture synonymy or paraphrase the way a real embedding does, so
-    /// it's a fit for testing *orchestration* logic (does confidence
-    /// correctly differentiate matching from non-matching content), not
-    /// a stand-in for real embedding-quality testing (which needs the
-    /// real model — see `crates/atlas-engine/examples/validate_embeddings.rs`
-    /// and friends).
+    /// tests: hashes each lowercased, non-stopword word of `text` into
+    /// one of [`WORD_BUCKET_COUNT`] buckets and counts occurrences per
+    /// bucket. Unlike a fixed-shape stand-in (e.g. "vector of
+    /// `text.len()` repeated"), texts sharing content vocabulary land in
+    /// similar buckets and score a real, meaningfully higher cosine
+    /// similarity than texts that don't — exactly the property tests of
+    /// confidence-gating logic need, without depending on a real
+    /// embedding model. This is a toy bag-of-words scheme, not a
+    /// semantic model — it cannot capture synonymy or paraphrase the way
+    /// a real embedding does, so it's a fit for testing *orchestration*
+    /// logic (does confidence correctly differentiate matching from
+    /// non-matching content), not a stand-in for real embedding-quality
+    /// testing (which needs the real model — see
+    /// `crates/atlas-engine/examples/validate_embeddings.rs` and
+    /// friends).
     fn word_bucket_embedding(text: &str) -> Vec<f32> {
         let mut buckets = vec![0.0f32; WORD_BUCKET_COUNT as usize];
         for word in text.split_whitespace() {
             let lower = word.to_lowercase();
+            if TESTING_STOPWORDS.contains(&lower.as_str()) {
+                continue;
+            }
             let hash = lower.bytes().fold(0u32, |acc, byte| {
                 acc.wrapping_mul(31).wrapping_add(u32::from(byte))
             });
@@ -416,7 +437,7 @@ pub mod testing {
                 })
                 .unwrap();
             assert_eq!(batch.vectors.len(), 2);
-            assert_eq!(batch.embedding_dimension, 16);
+            assert_eq!(batch.embedding_dimension, 128);
             assert_ne!(batch.vectors[0], batch.vectors[1]);
         }
     }
