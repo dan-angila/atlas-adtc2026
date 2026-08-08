@@ -1,6 +1,6 @@
 # ADTC 2026 Gate 1 readiness assessment
 
-Date: 2026-08-08
+Date: 2026-08-08 (updated 2026-08-09 — see "2026-08-09 update" below)
 
 ## What this document is
 
@@ -31,8 +31,9 @@ should inform, not decide.
 | Healthcare corpus | Real, 8 sources, individually license-verified, gaps documented | `research/healthcare-corpus/MANIFEST.md` |
 | Multilingual validation | Real test run; **result is mostly negative** | `docs/evaluation/multilingual-validation-2026-08.md`, see Gap 2 |
 | Performance/efficiency benchmarks | Real measurements; **none on reference hardware** | `docs/benchmarks/2026-08-08-adtc-benchmark-suite.md`, see Gap 3 |
-| Desktop app (Tauri + React) | Real backend wiring, real UI, real data rendering confirmed; **full interactive flow unverified in this sandbox** | This session; see Gap 4 |
-| Code quality gates | Clean | `cargo fmt`/`clippy -D warnings`/164 tests pass; `npm run build`/`lint`/`format:check` clean |
+| Desktop app (Tauri + React) | Real backend wiring, real UI, real data rendering confirmed; **full interactive flow still unverified — see 2026-08-09 update** | This session; see Gap 4 |
+| Citation/document provenance | Real — organization/jurisdiction/license/retrieved-date now flow from source front matter through storage into the UI, not just the manifest file | `docs/design/rag-pipeline.md` §5/§8, see 2026-08-09 update |
+| Code quality gates | Clean locally, **and now actually clean in CI** — see 2026-08-09 update for a real gap in this claim's prior verification | `cargo fmt`/`clippy -D warnings`/204 tests pass (full workspace, `atlas-app` included); `npm run build`/`lint`/`format:check` clean; `cargo deny check` clean |
 
 ## Gaps that block a "ready" verdict
 
@@ -137,3 +138,74 @@ gap to close and should happen before any of the others.
 4. **Gap 3**: get one real run on Ubuntu 22.04 / 8GB-class hardware,
    even a cloud VM approximation, before finalizing any throughput or
    RAM-tier claim in submission material.
+
+## 2026-08-09 update
+
+A different session (different sandbox, real GNOME/Wayland desktop
+rather than a headless one) picked up from this document and did an
+independent audit rather than trusting it at face value, per this
+project's own "run the app yourself" standard. Findings:
+
+- **`rust-ci` had actually been failing on every push since
+  2026-08-07** — including the commit that recorded this document's
+  "Code quality gates: Clean" line above. The failure was
+  `cargo-deny`'s advisories check (`RUSTSEC-2026-0192`, `ttf-parser`
+  unmaintained, pulled in via the PDF parser's `lopdf` dependency), not
+  `fmt`/`clippy`/`test` — those genuinely were clean, but "Code quality
+  gates: Clean" as a blanket claim wasn't accurate without also
+  checking the advisories step, which is part of the same CI gate.
+  Fixed by adding the advisory to `deny.toml`'s existing, established
+  ignore-list pattern (no safe upgrade exists, per the advisory itself);
+  verified with `cargo deny check` locally and confirmed green in CI
+  afterward. **Lesson for future sessions: "tests pass" claims should
+  name the actual CI run checked, not just local command output** — a
+  local `cargo fmt`/`clippy`/`test` pass and an actual green CI run are
+  not the same claim.
+- **The "BRIX Platform" screen was removed.** It showed a permanent
+  "Connected to the BRIX ecosystem" badge next to four representational
+  capability cards (Drug & Inventory, Accounting, Reports, BRIX
+  Intelligence). Regardless of the prior session's "representational
+  only, never implemented" intent (recorded in
+  `docs/design/frontend-visual-system.md`), this read as real
+  pharmacy-ERP functionality and directly contradicted the founder's
+  explicit standing instruction that Atlas is not BRIX Pharma. Five
+  screens remain: Ask Atlas, Medical Knowledge, Drug Reference,
+  Languages, Runtime & Benchmark.
+- **Citation/document provenance is now real, not just documented in a
+  manifest file.** Every healthcare-corpus source's YAML front matter
+  (organization, jurisdiction, license, retrieved date) was being parsed
+  for `MANIFEST.md` but discarded on ingest. `DocumentRecord` and the
+  SQLite schema gained five nullable provenance columns;
+  `build_healthcare_corpus.rs` now parses and stores them; `Citation`
+  and the Tauri DTOs carry them through; Ask Atlas's Evidence panel and
+  Medical Knowledge's document cards render them (a "License verified"
+  badge only when a license is actually on record). Verified end to end
+  with a direct `sqlite3` query against the rebuilt database, not just
+  a passing test suite.
+- **Gap 4 (interactive desktop demo) is still not fully closed**, and
+  for the same class of reason as before: this session's sandbox (a
+  real desktop this time, not headless) still had no working screenshot
+  path — `gdbus`'s GNOME Shell screenshot portal returned
+  `AccessDenied` (likely because this process isn't running under an
+  interactive session with portal consent), and ImageMagick's `import`
+  failed opening the X/XWayland display in a way that didn't produce a
+  usable error. Wayland-native screenshot/input tools (`grim`, `slurp`,
+  `xdotool`, `wtype`) are available via `apt` but were not installed
+  (`sudo apt-get install -y grim slurp xdotool wtype` — not run this
+  session; needs a human with sudo). What *was* newly confirmed: with
+  `libwebkit2gtk-4.1-dev`/`libdbus-1-dev`/etc. now installed in this
+  sandbox, `atlas-app` builds and launches under **completely default,
+  unmodified conditions** (no env var overrides) and — watched via
+  process CPU/memory and the real llama.cpp log output, not a
+  screenshot — reached a real "both models loaded, worker idle at ~1%
+  CPU" state consistent with `RuntimeStatus::Ready`, with no crash, on a
+  real Wayland session. That's a second independent data point (after
+  the prior session's own launches) that the default launch path is
+  stable, still short of the "clean, repeated confirmation" and the
+  actual click-through this document's Gap 4 asks for.
+
+No verdict change: **still NOT YET READY**, for the same reasons (Gaps
+1–3 are substantive and untouched by this update). This update closes
+one process gap (CI was silently red) and makes two real product
+improvements (removes a scope-creep risk, adds real provenance), but
+does not materially change the readiness math.
