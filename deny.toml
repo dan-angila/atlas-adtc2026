@@ -48,6 +48,14 @@ ignore = [
     "RUSTSEC-2025-0081", # unic-char-property
     "RUSTSEC-2025-0098", # unic-ucd-version
     "RUSTSEC-2025-0100", # unic-ucd-ident
+    # ttf-parser — unmaintained, pulled in transitively via lopdf (used
+    # by pdf-extract, the PDF DocumentParser adapter's text-extraction
+    # dependency) for font-metrics parsing within PDF files. The
+    # advisory itself states no safe upgrade exists; `skrifa` is offered
+    # as an alternative to ttf-parser directly, not something lopdf can
+    # be told to use. Revisit if pdf-extract/lopdf drops this dependency
+    # or a PDF library migration is ever undertaken.
+    "RUSTSEC-2026-0192", # ttf-parser
 ]
 
 [licenses]
