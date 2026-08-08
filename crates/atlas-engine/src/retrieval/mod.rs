@@ -42,9 +42,26 @@ pub use sqlite_store::SqliteKnowledgeRepository;
 /// language-aware yet), just enough to stop the specific class of false
 /// positive this project actually hit. Real multilingual lexical
 /// handling is Phase 7's job, not a silent side effect of this fix.
+///
+/// The trailing "generic verb" group (`take`, `get`, `have`, `may`,
+/// `can`, `should`, `will`, `need`, `use`) was added after a second real
+/// failure, found running `validate_healthcare_corpus_safety` against
+/// the real 8-document healthcare corpus (`research/healthcare-corpus/`):
+/// a drug-interaction question sharing only the word "take" with
+/// completely unrelated patient-education chunks (e.g. "take your
+/// medication as prescribed") registered as a lexical match, and
+/// combined with a semantic match within `MAX_COSINE_DISTANCE`, produced
+/// `RetrievalConfidence::Strong` for a question the corpus does not
+/// address at all. Verified before adding: each of these words appears
+/// in more than a third of the corpus's 22 chunks (`can` in 20/22),
+/// carrying essentially the same "no topical signal" property as the
+/// original list — this is not a preposition/pronoun/article extension,
+/// it is the same principle applied to a real corpus's actual generic
+/// vocabulary rather than a hand-picked toy example's.
 pub(crate) const ENGLISH_STOPWORDS: &[&str] = &[
     "a", "an", "the", "is", "are", "was", "were", "be", "been", "being", "for", "of", "in", "on",
     "at", "to", "and", "or", "but", "not", "with", "as", "by", "it", "this", "that", "these",
     "those", "i", "you", "he", "she", "we", "they", "do", "does", "did", "what", "which", "who",
-    "whom", "when", "where", "why", "how",
+    "whom", "when", "where", "why", "how", "take", "get", "have", "may", "can", "should", "will",
+    "need", "use",
 ];

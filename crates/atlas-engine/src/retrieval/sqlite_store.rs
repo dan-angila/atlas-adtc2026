@@ -670,6 +670,42 @@ mod tests {
     }
 
     #[test]
+    fn sharing_only_a_generic_verb_with_a_query_is_not_a_lexical_match() {
+        // Regression test for a real failure caught by
+        // crates/atlas-engine/examples/validate_healthcare_corpus_safety
+        // against the real 8-document healthcare corpus: a
+        // drug-interaction question about warfarin and ibuprofen
+        // registered as lexically matching completely unrelated
+        // patient-education content purely because both contained the
+        // word "take" (e.g. "take your medication as prescribed").
+        let repo = SqliteKnowledgeRepository::open_in_memory(3).unwrap();
+        let doc = document();
+        repo.store_document(&doc).unwrap();
+        repo.store_chunk(
+            &chunk_for(
+                doc.id,
+                "take your medication as prescribed by your provider",
+            ),
+            &[0.0, 0.0, 0.0],
+        )
+        .unwrap();
+
+        // Shares only "take" with the stored chunk — no content words in
+        // common. A zero query vector isolates this to the lexical leg.
+        let results = repo
+            .search(
+                "is it safe to take warfarin together with ibuprofen",
+                &[0.0, 0.0, 0.0],
+                10,
+            )
+            .unwrap();
+        assert!(
+            results.is_empty(),
+            "sharing only a generic verb must not register as a lexical match"
+        );
+    }
+
+    #[test]
     fn a_stored_chunk_round_trips_through_semantic_search() {
         let repo = SqliteKnowledgeRepository::open_in_memory(3).unwrap();
         let doc = document();

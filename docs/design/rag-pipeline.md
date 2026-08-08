@@ -265,6 +265,53 @@ fixed with a real, measured cosine-similarity floor (see
 related bug (naive lexical OR-matching treating shared English stopwords
 as a real match) was caught and fixed the same way.
 
+**A third, related bug — found and fixed at real corpus scale, not a toy
+example:** `crates/atlas-engine/examples/validate_healthcare_corpus_safety.rs`
+runs real drug-interaction and off-corpus questions against the real
+8-document healthcare corpus (`research/healthcare-corpus/`). A question
+about a warfarin/ibuprofen interaction — content nowhere in the corpus —
+registered `RetrievalConfidence::Strong` (both legs "agreeing") purely
+because the query and several unrelated patient-education chunks both
+contained the generic verb "take" (as in "take your medication as
+prescribed"). Confirmed at the SQL level: `take` alone matched 12 of the
+corpus's 22 chunks. `ENGLISH_STOPWORDS`
+(`crates/atlas-engine/src/retrieval/mod.rs`) was extended with a small
+set of similarly generic, near-universal verbs (`take`, `get`, `have`,
+`may`, `can`, `should`, `will`, `need`, `use` — each verified to appear
+in more than a third of the real corpus's chunks before being added, the
+same "actually verify, don't guess" standard as the original list), and
+a regression test
+(`sqlite_store::tests::sharing_only_a_generic_verb_with_a_query_is_not_a_lexical_match`)
+locks this in without needing a real model for CI. Verified fixed: the
+same warfarin/ibuprofen query dropped from `Strong` (5 citations) to
+`Weak` (3 citations) after this change, real model run to real model
+run.
+
+**A fourth issue — found, and honestly still open, not fixed:** a
+separate query with no corpus support at all ("What is the recommended
+treatment for a fractured femur?") still registers `Strong` confidence,
+because "treatment" — genuine, necessary medical vocabulary — appears in
+nearly every document in a patient-education corpus regardless of the
+specific condition. Unlike "take," this word cannot be added to a
+stopword list without breaking real treatment/symptom queries the corpus
+*should* answer confidently. This means `RetrievalConfidence::NoEvidence`
+essentially never triggers at this corpus's real scale for any query
+that happens to share common health vocabulary with the corpus, even
+when no document actually supports an answer — `validate_healthcare_corpus_safety.rs`
+reports this explicitly as a "known gap" on every run rather than
+silently passing. Resolving it needs either a real retrieval-quality
+benchmark (Phase 3's still-open item) to calibrate a genuine relevance
+signal against, or a different confidence mechanism than "did any
+content word overlap" — not a fourth stopword patch chasing individual
+words one real failure at a time.
+
+This is the second and third time hybrid retrieval's "agreement" signal
+has looked structurally sound in unit tests against small/synthetic
+corpora but broken against real content — a standing argument for
+treating **Strong** as "corroborated by two independent methods," never
+as "verified correct" or "verified relevant," and for continuing to test
+against real corpora as more are added.
+
 **Why this matters more than it might seem:** an enterprise user's trust
 in an offline assistant handling their own documents hinges on being able
 to verify a claim against the source — this is explicitly named as a

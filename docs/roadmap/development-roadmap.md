@@ -161,6 +161,23 @@ coverage for malformed/edge-case inputs per format.
       corpus with known-relevant answers, which doesn't exist yet (see
       that report's "Not yet done" — this is the item the exit criterion
       below is not fully met by).
+- [x] Real healthcare document corpus — `research/healthcare-corpus/`:
+      8 verified-public-domain MedlinePlus/CDC/NIH patient-education
+      documents (every source individually checked against 17 U.S.C. §105
+      and MedlinePlus's own reuse policy, never assumed open-license from
+      appearing online — see `MANIFEST.md`, which also documents every
+      source that was investigated and *not* ingested: WHO fact sheets
+      (restrictive ToU), WHO IRIS/EML (plausibly permissive but blocked
+      from per-document verification), Africa CDC (restrictive), a South
+      African MoH document (CC BY-NC-ND, incompatible with chunking).
+      Loaded into a real SQLite knowledge base by
+      `crates/atlas-engine/examples/build_healthcare_corpus.rs` through
+      the existing ingestion/retrieval pipeline, no parallel corpus
+      system. Running real safety-scenario queries against it with real
+      models (`validate_healthcare_corpus_safety.rs`) found a second real
+      stopword-class confidence bug (see Phase 5 below) — the corpus's
+      main immediate value has been surfacing a real defect, not yet a
+      formal precision/recall quality number.
 - [x] Retrieval confidence — `crates/atlas-engine/src/retrieval/confidence.rs`:
       a structural `NoEvidence`/`Weak`/`Strong` signal from which
       retrieval leg(s) corroborate the top result, deliberately not an
@@ -229,6 +246,34 @@ tiered benchmark remain open above).
       fixing the test doubles themselves first (see the "Known open
       items" note on `word_bucket_embedding`/`ENGLISH_STOPWORDS`) —
       the original fakes could not represent "unrelated content" at all.
+- [x] Real-corpus, real-model safety validation —
+      `crates/atlas-engine/examples/validate_healthcare_corpus_safety.rs`
+      runs in-corpus and out-of-corpus (dosage, drug-interaction,
+      unrelated-condition) questions against the real healthcare corpus
+      (Phase 3 above) with real Qwen3-4B + nomic-embed-text-v1.5. Found a
+      real bug on the first run: a warfarin/ibuprofen drug-interaction
+      question — content nowhere in the corpus — scored
+      `RetrievalConfidence::Strong` because the query and unrelated
+      patient-education chunks both contained the generic verb "take."
+      Fixed by extending `ENGLISH_STOPWORDS` with verified-generic verbs
+      (`take`, `get`, `have`, `may`, `can`, `should`, `will`, `need`,
+      `use` — each confirmed present in over a third of the real corpus's
+      chunks before being added) and locked in with a regression test
+      (`sqlite_store::tests::sharing_only_a_generic_verb_with_a_query_is_not_a_lexical_match`).
+      Verified fixed with a second real-model run: the same query dropped
+      from `Strong` (5 citations) to `Weak` (3 citations).
+      **Not fully resolved, and reported as such, not hidden:** a
+      "fractured femur" query (no corpus support at all) still scores
+      `Strong` because "treatment" — real, necessary medical vocabulary —
+      appears in nearly every document. `NoEvidence` essentially never
+      triggers at this corpus's real scale for queries sharing common
+      health vocabulary with the corpus. The example now reports this
+      explicitly as a "known gap" every run (3 of 5 scenarios, all
+      dosage/interaction/trauma questions with zero relevant corpus
+      support) rather than asserting a refusal guarantee this pipeline
+      doesn't actually provide yet — see
+      `docs/design/rag-pipeline.md`'s retrieval-confidence section for
+      the full finding and why it isn't a simple stopword fix.
 - [ ] Multi-turn context management — `RagAnswerer` today answers one
       query at a time; genuine multi-turn state (conversation history
       folded into the prompt budget) is not yet built.

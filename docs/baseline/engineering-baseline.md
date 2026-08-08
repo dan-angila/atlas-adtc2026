@@ -65,14 +65,15 @@ architecture below is unaffected and remains fully domain-agnostic.
     the Runtime — see "Known open items."
   - `ui/` — React + TypeScript + Vite front end calling `get_app_info`
     end to end.
-  - 186 tests + 1 doc-test passing across the workspace (`cargo test`,
+  - 195 tests + 1 doc-test passing across the workspace (`cargo test`,
     excluding `atlas-app` which can't build in this sandbox — see below),
     including real spawned-worker integration tests, real SQLite +
     `sqlite-vec` + FTS5 integration tests, and real-model validation
     examples (`crates/atlas-engine/examples/validate_runtime.rs`,
     `validate_embeddings.rs`, `validate_ingestion_pipeline.rs`,
     `validate_rag_answering.rs`, `benchmark_retrieval.rs`,
-    `probe_cosine_distribution.rs`).
+    `probe_cosine_distribution.rs`, `build_healthcare_corpus.rs`,
+    `validate_healthcare_corpus_safety.rs`).
 - **Architecture:** baselined and extended. See
   `docs/architecture/overview.md` and
   `docs/architecture/runtime-architecture.md`.
@@ -134,12 +135,33 @@ architecture below is unaffected and remains fully domain-agnostic.
   something this baseline should silently pick a side on. Still
   outstanding from the original open item: Ubuntu 22.04 (still Kali) and
   a larger sample size.
-- **Retrieval quality is not yet benchmarked** —
+- **Retrieval quality is not yet formally benchmarked, but a real corpus
+  now exists to benchmark against.**
   [`docs/benchmarks/2026-08-07-retrieval-latency.md`](../benchmarks/2026-08-07-retrieval-latency.md)
   measures real embed/store/query latency (200 synthetic chunks) but
   explicitly does not measure whether hybrid search returns the *right*
-  chunks at real corpus scale — that needs a real document corpus with
-  known-relevant answers, which doesn't exist yet.
+  chunks at real corpus scale — that previously needed a real document
+  corpus with known-relevant answers, which didn't exist. It does now:
+  `research/healthcare-corpus/` (8 verified-public-domain MedlinePlus/
+  CDC/NIH documents, see its `MANIFEST.md`), built into a real knowledge
+  base by `crates/atlas-engine/examples/build_healthcare_corpus.rs`.
+  Running `validate_healthcare_corpus_safety.rs` against it (real Qwen3
+  4B + real nomic-embed-text-v1.5) surfaced a real, second stopword-class
+  bug — see the `ENGLISH_STOPWORDS` item below — fixed and covered by a
+  regression test, plus a third, structurally different, **still open**
+  finding: a query with zero corpus support can still score `Strong`
+  confidence purely by sharing genuine, necessary medical vocabulary
+  (e.g. "treatment") that happens to appear in nearly every document.
+  `RetrievalConfidence::NoEvidence` essentially never triggers at this
+  corpus's real scale for such queries — of the validation script's 5
+  scenarios, all 3 with zero genuinely relevant corpus content get an
+  answer (hedged or confident) rather than a refusal, every run,
+  reported explicitly as a "known gap," not silently passed. A
+  precision/recall-style quality benchmark with known-relevant answers
+  is still not built; this is real-model *safety* validation (does it
+  answer when it should, refuse/hedge when it shouldn't), not a
+  retrieval-quality metric, and it shows real-model safety is **not**
+  fully proven yet.
 - **Embedding throughput is the dominant ingest-time cost** (~42
   ms/chunk on reference hardware, release build) — multi-sequence
   batching was tried and **rejected on correctness grounds** (verified:
@@ -160,8 +182,16 @@ architecture below is unaffected and remains fully domain-agnostic.
   only list** (`retrieval::ENGLISH_STOPWORDS`, shared by both
   `KnowledgeRepository` adapters) — added after a real query was found
   to lexically "match" unrelated corpus text purely by sharing words
-  like "for" and "a." Does not generalize to other languages; real
-  multilingual lexical handling is Phase 7's job.
+  like "for" and "a," then extended a second time after a real
+  drug-interaction question registered `Strong` confidence against the
+  real healthcare corpus purely by sharing the generic verb "take" with
+  unrelated patient-education chunks (verified: "take" alone matched 12
+  of 22 real chunks). Both fixes are real, both are covered by regression
+  tests, but the list is still a hand-maintained set found by hitting
+  real failures one at a time, not a principled solution — a corpus large
+  enough to need IDF-style term weighting instead of a stopword list is a
+  real possibility as more content is added. Does not generalize to other
+  languages; real multilingual lexical handling is Phase 7's job.
 - **`FakeInferenceEngine`'s original embedding scheme could not
   represent "unrelated content" at all** (every non-empty text produced
   a vector parallel to every other — cosine similarity always exactly

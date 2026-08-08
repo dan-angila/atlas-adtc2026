@@ -26,3 +26,13 @@ MD041: false
 # Table pipe-spacing consistency — too opinionated to chase across every
 # table in the repo for no readability gain.
 MD060: false
+
+# Don't treat YAML front matter's `title:` field as an implicit H1.
+# research/healthcare-corpus/sources/*.md carries a `title:` field for
+# provenance metadata (see MANIFEST.md), but the real, required H1 is the
+# body heading MarkdownParser actually chunks on
+# (crates/atlas-engine/src/ingestion/markdown.rs strips front matter
+# before heading-based chunking) — without this, MD025 sees the two as
+# duplicate top-level headings.
+MD025:
+  front_matter_title: ""
