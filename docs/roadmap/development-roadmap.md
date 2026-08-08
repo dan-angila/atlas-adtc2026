@@ -305,6 +305,20 @@ specific source chunk.
       management
 - [ ] UI-level RAM/performance validation on the reference hardware class
       (WebKitGTK on Ubuntu 22.04 specifically — see ADR-0007's risk note)
+- **Confirmed, 2026-08-08:** `atlas-app` cannot even `cargo check` in
+  this development sandbox — `libwebkit2gtk-4.1-dev` (which also
+  provides the `javascriptcoregtk-4.1` pkg-config file
+  `javascriptcore-rs-sys` needs) is not installed, and `sudo` here
+  requires a password this session doesn't have. This blocks compiling
+  any new Tauri command, not just running/screenshotting the shell. Real
+  frontend UI work (React components, design system) can still proceed
+  and be previewed via the plain Vite dev server outside the Tauri
+  webview (`invoke()` calls fail gracefully — `ui/src/App.tsx` already
+  handles that case), but wiring new backend commands and any real
+  desktop-shell screenshot needs
+  `sudo apt install libwebkit2gtk-4.1-dev build-essential curl wget file
+  libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev` run
+  by someone with sudo access first.
 
 **Exit criteria:** a non-technical user can install the application,
 ingest a document, and have a conversation about it without touching a

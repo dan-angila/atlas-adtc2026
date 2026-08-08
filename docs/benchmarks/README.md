@@ -45,6 +45,12 @@ script used, under `/scripts` if it's a reusable benchmark harness.
 
 ## Status
 
-No benchmark reports exist yet. The first is expected in Phase 3
-(Knowledge Retrieval) of `docs/roadmap/development-roadmap.md`, per that
-phase's exit criteria.
+Five reports exist: model/embedding validation, retrieval latency, and
+[`2026-08-08-adtc-benchmark-suite.md`](2026-08-08-adtc-benchmark-suite.md),
+which consolidates all of them against the Africa Deep Tech Challenge's
+evaluation categories — read that one first for the overall picture,
+and the individual reports for full methodology. Its single biggest
+finding: **every report in this repository, including itself, was run
+on development hardware more capable than the competition's stated
+minimum spec** (19 GiB RAM vs. an 8GB target) — no number here is yet
+confirmed to hold on true reference hardware.
