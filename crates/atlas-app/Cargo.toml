@@ -32,3 +32,5 @@ thiserror = { workspace = true }
 tracing = { workspace = true }
 atlas-config = { path = "../atlas-config" }
 atlas-logging = { path = "../atlas-logging" }
+atlas-domain = { path = "../atlas-domain" }
+atlas-engine = { path = "../atlas-engine" }

@@ -104,6 +104,8 @@ name = "atlas-app"
 version = "0.1.0"
 dependencies = [
  "atlas-config",
+ "atlas-domain",
+ "atlas-engine",
  "atlas-logging",
  "serde",
  "serde_json",

@@ -136,6 +136,16 @@ pub trait KnowledgeRepository: Send + Sync {
         &self,
         document_id: atlas_domain::DocumentId,
     ) -> Result<Option<DocumentRecord>, RetrievalError>;
+
+    /// Lists every document's catalog entry, in no particular guaranteed
+    /// order — the source of a "browse the knowledge base" UI, as
+    /// distinct from [`KnowledgeRepository::search`], which needs a
+    /// query.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RetrievalError::Storage`] if the listing itself fails.
+    fn list_documents(&self) -> Result<Vec<DocumentRecord>, RetrievalError>;
 }
 
 /// A second, real (not `#[cfg(test)]`-gated) adapter for
@@ -205,6 +215,14 @@ pub mod testing {
                 .iter()
                 .find(|document| document.id == document_id)
                 .cloned())
+        }
+
+        fn list_documents(&self) -> Result<Vec<DocumentRecord>, RetrievalError> {
+            Ok(self
+                .documents
+                .lock()
+                .expect("in-memory repository mutex poisoned")
+                .clone())
         }
 
         fn store_chunk(
@@ -444,6 +462,23 @@ pub mod testing {
 
             let missing = repo.get_document(Id::new()).unwrap();
             assert_eq!(missing, None);
+        }
+
+        #[test]
+        fn list_documents_returns_every_stored_document() {
+            let repo = InMemoryKnowledgeRepository::new(3);
+            assert_eq!(repo.list_documents().unwrap(), Vec::new());
+
+            let document = DocumentRecord {
+                id: Id::new(),
+                title: "Test Doc".to_string(),
+                source_path: "/tmp/test.md".into(),
+                format: atlas_domain::DocumentFormat::Markdown,
+                checksum: "a".repeat(64),
+            };
+            repo.store_document(&document).unwrap();
+
+            assert_eq!(repo.list_documents().unwrap(), vec![document]);
         }
     }
 }

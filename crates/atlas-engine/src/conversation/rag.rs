@@ -126,6 +126,13 @@ pub enum RagError {
 /// `docs/design/rag-pipeline.md` §§4–8: embed → retrieve → assess
 /// confidence → select evidence within budget → assemble a grounded
 /// prompt → generate, or refuse outright when there is no evidence.
+///
+/// `Clone` is cheap and intentional: every field is an `Arc` or a
+/// `Copy` config, so a caller (e.g. a Tauri command holding this behind
+/// a `Mutex<RuntimeStatus>`) can clone it out, drop the lock, and run a
+/// potentially slow `answer()` call without blocking other commands
+/// that only need to read Runtime status.
+#[derive(Clone)]
 pub struct RagAnswerer {
     inference: Arc<dyn InferenceEngine>,
     knowledge: Arc<dyn KnowledgeRepository>,

@@ -2,21 +2,17 @@
 //!
 //! This crate is the one place in the codebase allowed to know which
 //! concrete adapter implements which port (`docs/architecture/
-//! module-boundaries.md`, rule 2) — though at this bootstrap stage there
-//! are no ports or adapters yet to wire, only shared infrastructure
-//! (configuration, logging) and the Tauri shell itself.
-//!
-//! `atlas-domain` and `atlas-engine` are workspace members but are
-//! deliberately not dependencies of this crate yet — see the note in the
-//! workspace `Cargo.toml` and
-//! `docs/execution/architecture-review-2026-08-04.md`. Wiring them in
-//! before real ports and adapters exist would create either an unused
-//! dependency or fabricated placeholder usage.
+//! module-boundaries.md`, rule 2): [`runtime`] wires `RuntimeManager`
+//! (the real llama.cpp FFI adapter) and `SqliteKnowledgeRepository` (the
+//! real SQLite + `sqlite-vec` + FTS5 adapter) into a real
+//! [`atlas_engine::conversation::RagAnswerer`], and [`commands`] exposes
+//! that Runtime to the front end.
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
 mod commands;
+mod runtime;
 
 use atlas_config::AppConfig;
 use atlas_logging::{Level, LoggingConfig};
@@ -76,13 +72,28 @@ pub fn run() {
         log_level: level.to_string(),
     };
 
+    // Starts loading the real Runtime (inference worker, both models,
+    // the healthcare knowledge base) on a background thread so the
+    // window can appear immediately with an honest "loading" state
+    // rather than blocking for the ~50 real seconds model loading takes
+    // on this hardware class (`docs/benchmarks/2026-08-07-qwen3-4b-validation.md`).
+    let runtime_status = runtime::spawn_bootstrap();
+
     // Justified per this function's `# Panics` section: a failure to
     // start the Tauri runtime is unrecoverable and this is the standard,
     // idiomatic top-level pattern for a Tauri application.
     #[allow(clippy::expect_used)]
     tauri::Builder::default()
         .manage(app_info)
-        .invoke_handler(tauri::generate_handler![commands::get_app_info])
+        .manage(runtime_status)
+        .invoke_handler(tauri::generate_handler![
+            commands::get_app_info,
+            commands::get_runtime_status,
+            commands::ask_atlas,
+            commands::list_documents,
+            commands::list_languages,
+            commands::get_benchmark,
+        ])
         .run(tauri::generate_context!())
         .expect("error while running BRIX Atlas");
 }

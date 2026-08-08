@@ -322,6 +322,47 @@ impl KnowledgeRepository for SqliteKnowledgeRepository {
             checksum,
         }))
     }
+
+    fn list_documents(&self) -> Result<Vec<DocumentRecord>, RetrievalError> {
+        let connection = self.lock();
+        let mut statement = connection
+            .prepare("SELECT document_id, title, source_path, format, checksum FROM documents")
+            .map_err(|error| {
+                RetrievalError::Storage(format!("failed to prepare document listing: {error}"))
+            })?;
+
+        let rows = statement
+            .query_map([], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, String>(3)?,
+                    row.get::<_, String>(4)?,
+                ))
+            })
+            .map_err(|error| {
+                RetrievalError::Storage(format!("failed to list documents: {error}"))
+            })?;
+
+        let mut documents = Vec::new();
+        for row in rows {
+            let (document_id, title, source_path, format, checksum) = row.map_err(|error| {
+                RetrievalError::Storage(format!("failed to read a document row: {error}"))
+            })?;
+            let document_uuid = Uuid::parse_str(&document_id).map_err(|error| {
+                RetrievalError::Storage(format!("corrupt document_id in store: {error}"))
+            })?;
+            documents.push(DocumentRecord {
+                id: Id::from_uuid(document_uuid),
+                title,
+                source_path: source_path.into(),
+                format: str_to_format(&format)?,
+                checksum,
+            });
+        }
+        Ok(documents)
+    }
 }
 
 /// Runs the lexical (FTS5 BM25) leg of a hybrid search, returning
@@ -590,6 +631,29 @@ mod tests {
 
         let missing = repo.get_document(Id::new()).unwrap();
         assert_eq!(missing, None);
+    }
+
+    #[test]
+    fn list_documents_returns_every_stored_document() {
+        let repo = SqliteKnowledgeRepository::open_in_memory(3).unwrap();
+        assert_eq!(repo.list_documents().unwrap(), Vec::new());
+
+        let first = document();
+        let second = DocumentRecord {
+            id: Id::new(),
+            title: "Second Document".to_string(),
+            source_path: "/tmp/second.md".into(),
+            format: atlas_domain::DocumentFormat::Markdown,
+            checksum: "b".repeat(64),
+        };
+        repo.store_document(&first).unwrap();
+        repo.store_document(&second).unwrap();
+
+        let mut listed = repo.list_documents().unwrap();
+        listed.sort_by_key(|document| document.id);
+        let mut expected = vec![first, second];
+        expected.sort_by_key(|document| document.id);
+        assert_eq!(listed, expected);
     }
 
     #[test]

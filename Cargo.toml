@@ -10,13 +10,12 @@ members = [
     "crates/atlas-app",
 ]
 
-# atlas-engine and atlas-domain are workspace members (they compile and
-# are tested by `cargo test --workspace`) but are NOT YET depended on by
-# atlas-app. Wiring them into the composition root before real ports and
-# adapters exist would mean either an unused dependency edge or
-# fabricated placeholder usage — both are ruled out for this stage of the
-# project. See docs/execution/architecture-review-2026-08-04.md and
-# docs/roadmap/development-roadmap.md, Phase 1.
+# atlas-engine and atlas-domain are real dependencies of atlas-app as of
+# the frontend/backend wiring work in docs/roadmap/development-roadmap.md
+# Phase 6 — real ports and adapters (RagAnswerer, KnowledgeRepository,
+# LanguageRegistry, the benchmark engine) exist now, so atlas-app, the
+# composition root, wires concrete adapters to them
+# (docs/architecture/module-boundaries.md).
 
 [workspace.package]
 version = "0.1.0"
