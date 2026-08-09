@@ -433,16 +433,52 @@ languages, which remains the real, previously-measured, mostly-negative
 result in `docs/evaluation/multilingual-validation-2026-08.md` (not
 re-run this session; nothing changed that would plausibly affect it).
 
+### Gap 4, GUI half — root cause identified, closed as an accepted sandbox limit
+
+The founder had `grim`, `slurp`, `xdotool`, and `wtype` installed in
+this sandbox specifically to unblock the GUI half of Gap 4. All four
+installed cleanly, and all four failed — but for a specific, now-
+understood reason, not a generic "screenshot didn't work":
+
+- `grim` requires the `wlr-screencopy-unstable-v1` Wayland protocol,
+  which only wlroots-based compositors (Sway, River, etc.) implement.
+- `wtype` requires `wlr-virtual-keyboard-unstable-v1`, same family of
+  protocol, same limitation.
+- This sandbox's compositor is **GNOME/Mutter**, which implements
+  neither — it exposes screenshot/input capability only through its own
+  D-Bus portal (`org.gnome.Shell.Screenshot`), which requires
+  interactive user consent through a real logged-in session.
+  `gdbus call ... org.gnome.Shell.Screenshot.Screenshot` returns
+  `GDBus.Error:org.freedesktop.DBus.Error.AccessDenied: Screenshot is
+  not allowed` for exactly that reason — not a missing package, a
+  consent gate a non-interactive background process cannot pass.
+- `xdotool` found no window at all: confirmed via `xwininfo -root
+  -tree` that Atlas renders as a native Wayland surface, invisible to
+  X11/XWayland tooling entirely.
+
+**This is a compositor-family mismatch, not a remaining tooling gap.**
+No further `apt install` in this sandbox will close it. The founder
+directed accepting backend-only verification as the evidence ceiling
+here and moving on, which this document does: Gap 4's backend half
+(real bootstrap, both real models loading, `RuntimeStatus::Ready`-
+equivalent state reached) is independently confirmed **three times**
+across two sessions and is treated as closed. Its GUI half stays open,
+with a precise, actionable path recorded for whoever picks it up next:
+either run on a wlroots-based compositor (Sway), or get interactive
+`gnome-screenshot`/portal access from a real logged-in GNOME session —
+not "install more CLI tools."
+
 ### Verdict
 
 **Still NOT YET READY**, unchanged from the prior update, for the same
-underlying reasons (Gaps 2 and 3 are untouched; Gap 4's backend half is
-now more strongly confirmed but its GUI half is still open; the new
-citation-precision finding above is a real, if lower-severity than
-Gap 1, addition to the list). What this update adds: independent
-re-confirmation that Gap 1's fix holds, one new named finding (citation
-precision within an already-correctly-`Strong` answer), stronger
-evidence on Gap 4's backend half, a clean full-workspace security
-review with no findings requiring a fix, and a concrete unblock path for
-Gap 3 (the `adtc-profiler` command, pending explicit approval to install
-it).
+underlying reasons (Gaps 2 and 3 are untouched; Gap 4's GUI half is
+still open, now for a precisely understood and accepted reason rather
+than an unexplained one; the new citation-precision finding above is a
+real, if lower-severity than Gap 1, addition to the list). What this
+update adds: independent re-confirmation that Gap 1's fix holds, one
+new named finding (citation precision within an already-correctly-
+`Strong` answer), a definitive root-cause diagnosis closing out further
+sandbox-tooling attempts at Gap 4's GUI half, a clean full-workspace
+security review with no findings requiring a fix, and a concrete
+unblock path for Gap 3 (the `adtc-profiler` command, pending explicit
+approval to install it).
