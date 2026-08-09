@@ -68,8 +68,7 @@ export function RuntimeBenchmark({ runtimeStatus }: { runtimeStatus: RuntimeStat
     <div className="product-screen">
       <section className="hero-panel compact">
         <div>
-          <span className="eyebrow">{t.screenTitles.runtime.title}</span>
-          <h2>{t.runtimeBenchmark.heroTitle}</h2>
+          <h3>{t.runtimeBenchmark.heroTitle}</h3>
           <p>{t.runtimeBenchmark.heroSubtitle}</p>
         </div>
       </section>

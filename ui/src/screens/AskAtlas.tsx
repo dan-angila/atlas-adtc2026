@@ -52,10 +52,7 @@ function EvidencePanel({ citations, t }: { citations: CitationDto[]; t: Translat
             ...citation.headingPath,
           ].filter(Boolean);
           return (
-            <article
-              className="evidence-item atlas-evidence-card"
-              key={`${citation.chunkId}-${index}`}
-            >
+            <article className="evidence-item" key={`${citation.chunkId}-${index}`}>
               <div className="evidence-item-body">
                 <span className="evidence-title">
                   {citation.documentTitle ?? t.common.untitledSource}
@@ -141,7 +138,7 @@ function TurnView({ turn, t }: { turn: Turn; t: Translations }) {
       )}
 
       {turn.status === "done" && turn.response?.outcome === "refused" && (
-        <div className="refusal-panel atlas-safe-panel">
+        <div className="refusal-panel">
           <span className="refusal-panel-icon">
             <ShieldIcon />
           </span>
@@ -265,8 +262,7 @@ export function AskAtlas({ runtimeStatus }: { runtimeStatus: RuntimeStatusDto | 
     <div className="product-screen ask-atlas-screen">
       <section className="hero-panel ask-hero-panel">
         <div className="hero-copy">
-          <span className="eyebrow">{t.brand.name}</span>
-          <h1>{t.askAtlas.heroTitle}</h1>
+          <h3>{t.askAtlas.heroTitle}</h3>
           <p>{t.askAtlas.heroSubtitle}</p>
           <div className="hero-actions-row">
             <Badge tone="success">{t.askAtlas.badgeOffline}</Badge>

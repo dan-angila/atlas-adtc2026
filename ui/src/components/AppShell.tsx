@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import { BookIcon, ChatIcon, DropletIcon, GaugeIcon, GlobeIcon } from "./icons";
+import { BookIcon, ChatIcon, ChevronRightIcon, DropletIcon, GaugeIcon, GlobeIcon } from "./icons";
 import { RuntimeStatusPill } from "./RuntimeStatusPill";
 import { useTranslation } from "../i18n";
 import type { RuntimeStatusDto } from "../lib/tauri";
@@ -93,7 +93,11 @@ export function AppShell({
 
       <header className="app-header">
         <div className="app-header-title">
-          <span className="eyebrow">{t.brand.name}</span>
+          <div className="app-breadcrumb">
+            <span>{t.brand.name}</span>
+            <ChevronRightIcon aria-hidden="true" />
+            <span className="current">{t.nav.workspace}</span>
+          </div>
           <h2>{title}</h2>
           <p>{subtitle}</p>
         </div>

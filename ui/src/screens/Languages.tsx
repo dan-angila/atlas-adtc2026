@@ -74,8 +74,7 @@ export function Languages({ runtimeStatus }: { runtimeStatus: RuntimeStatusDto |
     <div className="product-screen">
       <section className="hero-panel compact">
         <div>
-          <span className="eyebrow">{t.screenTitles.languages.title}</span>
-          <h2>{t.languagesScreen.heroTitle}</h2>
+          <h3>{t.languagesScreen.heroTitle}</h3>
           <p>{t.languagesScreen.heroSubtitle}</p>
         </div>
         <div className="hero-metric-grid compact-grid">

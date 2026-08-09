@@ -51,8 +51,7 @@ export function DrugReference({ runtimeStatus }: { runtimeStatus: RuntimeStatusD
     <div className="product-screen">
       <section className="hero-panel compact">
         <div>
-          <span className="eyebrow">{t.screenTitles.drugs.title}</span>
-          <h2>{t.drugReference.heroTitle}</h2>
+          <h3>{t.drugReference.heroTitle}</h3>
           <p>{t.drugReference.heroSubtitle}</p>
         </div>
         <div className="hero-actions-row wrap">
@@ -121,7 +120,7 @@ export function DrugReference({ runtimeStatus }: { runtimeStatus: RuntimeStatusD
             </div>
 
             {report.results.length === 0 ? (
-              <div className="refusal-panel atlas-safe-panel">
+              <div className="refusal-panel">
                 <span className="refusal-panel-icon">
                   <AlertIcon />
                 </span>

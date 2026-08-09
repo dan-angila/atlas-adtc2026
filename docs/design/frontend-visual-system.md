@@ -341,3 +341,98 @@ verify OS-level display scaling (100/125/150/200%) directly — a
 unreliable for this purpose in the headless environment; the 1024px
 narrow-viewport check is the closest available substitute and showed no
 breakage.
+
+## De-hero-ification pass (2026-08-09)
+
+A user visual review of the built app rejected the result as still
+reading like an "AI concept/landing page" rather than production
+healthcare software, despite the reference-image work above. Re-auditing
+against the actual rendered app (not just the source) surfaced concrete,
+fixable causes — the composition doubled up on itself, not merely "felt
+big":
+
+- **The app header and every screen's own `.hero-panel` both rendered
+  the page's brand + title + description**, back to back — the header
+  showed `BRIX ATLAS` / page title / subtitle, then the very next
+  element on screen repeated `BRIX ATLAS` again via an `eyebrow` span
+  plus a second, *much larger* heading (`clamp(24px, 3vw, 34px)` on
+  every screen; `clamp(32px, 4.4vw, 46px)` on Ask Atlas specifically) at
+  the top of the content area. Two consecutive blocks stating the same
+  thing at escalating type size is exactly what marketing landing pages
+  do; production software states a page's identity once.
+- **`body` had two decorative radial gradients** (a teal blob top-right,
+  a blue blob left-center) — literally the "ornamental blobs" this
+  project's own standards list as something to avoid. Also removed a
+  faint top-of-content gradient film on `.app-main` and gradient films
+  on `.atlas-panel`/`.hero-panel`/`.knowledge-card` (a
+  `linear-gradient(180deg, rgba(255,255,255,0.02-0.04), transparent)`
+  sheen over an otherwise flat card) and a teal-tinted background on the
+  Ask Atlas metrics panel (`.hero-side-panel`) — all decorative, none
+  carrying information.
+- Card/panel radius was inconsistent with this file's own documented
+  12px standard: `.hero-panel`/`.knowledge-card` hardcoded 16–18px
+  instead of using `--radius-lg`.
+
+Fix, not a rewrite: the header keeps ownership of the page's brand,
+title, and one-line subtitle (now via an explicit two-level breadcrumb —
+`BRIX ATLAS ▸ Workspace` — above the title, addressing this project's
+"TOP BAR: breadcrumb/context" requirement directly). Each screen's own
+`.hero-panel` dropped the duplicate `eyebrow` + display-size heading and
+now carries only its screen-specific framing statement (unique copy,
+e.g. Ask Atlas's "Offline Healthcare Intelligence" positioning line —
+not a repeat of the nav label) at a restrained `h3`/body-text weight,
+alongside the real inline metrics/actions it already had. `--header-height`
+went from 76px to 68px; `.hero-panel` padding from 32px to 16px. Every
+touched card is now flat (`var(--surface-raised)` + a 1px border, no
+gradient film, no shadow on the intro bar) and consistently
+`var(--radius-lg)` (12px). The floating pipeline diagram
+(`.flow-diagram`) — Ask Atlas's real signature element, a literal map of
+the six-step `RagAnswerer` call path — was kept but tightened (28px
+markers, not 36px) rather than removed, since it is functional
+explanation, not decoration.
+
+Two real, unrelated bugs turned up during Playwright verification of the
+result against a client-side-only mocked Tauri bridge (populated
+documents/citations/benchmark data, never committed, same technique as
+the prior visual-polish pass):
+
+- `.metric-card` (Runtime & Benchmark) is a CSS grid item with no
+  `min-width: 0`; combined with `.badge`'s `white-space: nowrap`, the
+  "Worker State" card's "Generation + embedding loaded" badge overflowed
+  its own card boundary at 1366px width — a real, viewport-independent
+  layout bug, not a screenshot artifact (verified by checking the
+  badge's own bounding box against its card). Fixed by giving
+  `.metric-card` `min-width: 0` and letting badges inside `.metric-value`
+  wrap.
+- `.atlas-evidence-card` (Ask Atlas's evidence-source cards) set
+  `align-items: stretch`, which stretched the small "License verified"
+  tag to the full height of its sibling excerpt text, leaving it
+  vertically centered in a tall empty box instead of sitting flush with
+  the citation title. The class had exactly one caller and existed only
+  to override the base `.evidence-item` rule's (correct) `flex-start` —
+  removed.
+
+Also removed, while in this file: two fully dead CSS rule sets
+(`.ask-hero`/`.suggestion-grid`, superseded by `.hero-panel.ask-hero-panel`/
+`.hero-actions-row.wrap` in an earlier pass but never deleted; a stray
+`.flow-strip` media-query reference to a class that no longer exists) and
+two now-unused type-scale tokens (`--text-2xl`, `--text-display`) that
+only the deleted display headlines referenced.
+
+Verified: `tsc -b`, `eslint .`, `prettier --check .`, `vite build` all
+clean. Playwright-verified against the live dev server with a mocked
+Tauri bridge at 1366×768: all five screens' populated states (Ask
+Atlas's answered and safe-refused turns with real evidence-panel/
+citation rendering, Medical Knowledge's document grid, Drug Reference's
+search results, Languages' coverage cards, Runtime & Benchmark's metric
+grid and hardware/generation-throughput panels after running the real
+benchmark button), plus Arabic RTL and Amharic (Ethiopic script) re-
+verified against the new compact layout specifically (breadcrumb and
+accessibility trigger both mirror correctly under `dir="rtl"`). The
+HealPlus Pharmacy screenshots referenced as the target visual language
+for this pass were not available to inspect in this session (the
+directory is root-owned, `0700`, unreadable without a sudo password this
+environment doesn't have, and no image was actually attached to the
+request) — this pass worked from the requester's detailed written
+description of the target instead and says so plainly rather than
+claiming a comparison that didn't happen.

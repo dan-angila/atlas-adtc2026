@@ -83,8 +83,7 @@ export function MedicalKnowledge({ runtimeStatus }: { runtimeStatus: RuntimeStat
     <div className="product-screen">
       <section className="hero-panel compact">
         <div>
-          <span className="eyebrow">{t.screenTitles.knowledge.title}</span>
-          <h2>{t.medicalKnowledge.heroTitle}</h2>
+          <h3>{t.medicalKnowledge.heroTitle}</h3>
           <p>{t.medicalKnowledge.heroSubtitle}</p>
         </div>
         <div className="hero-metric-grid compact-grid">

@@ -97,6 +97,16 @@ The implemented visual direction is a restrained dark Atlas workstation with:
 - clear evidence hierarchy
 - responsive layout that remains readable on practical laptop resolutions
 
+A page's identity (brand, title, one-line description) is stated exactly
+once, in the app header — as a breadcrumb (`BRIX ATLAS ▸ Workspace`)
+above a compact title, not restated at display size in the content
+below it. Every screen's own intro panel carries only its
+screen-specific framing statement plus real inline metrics/actions, at
+body-text weight, on a flat bordered surface (no gradient films, no
+decorative background blobs, no shadow beyond what a floating/docked
+element needs) — see `docs/design/frontend-visual-system.md`'s
+"De-hero-ification pass" for what this replaced and why.
+
 ## 9. Accessibility and internationalization
 
 The accessibility control (`AccessibilityWidget`) is a single global
