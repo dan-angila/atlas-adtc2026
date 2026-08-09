@@ -226,6 +226,31 @@ itself implement, any refusal behavior — a future Conversation & Session
 feature can consume this signal once §7's context assembly (below)
 exists to have something to refuse *from*.
 
+**False-Strong fix (2026-08-09):** real testing against the 8-document
+healthcare corpus found `matched_lexical` too permissive for what it's
+used for — membership in the lexical leg's deliberately wide-net,
+single-word-OR candidate set was being read as "an independent method
+corroborates this," which let a query reach `Strong` confidence by
+sharing just one topic-generic word (e.g. "treatment") with an
+unrelated document. Fixed by additionally requiring most (≥75%) of the
+query's content words to actually appear in the chunk before it counts
+as lexically corroborated — a structural, countable property, not a
+tuned similarity score — computed at `matched_lexical`-assignment time
+in `sqlite_store.rs::search`, leaving lexical search/ranking itself
+untouched (still permissive, for recall). **Measured, not assumed:** a
+clean before/after run of
+`crates/atlas-engine/examples/validate_healthcare_corpus_safety.rs`
+against the real corpus showed the "fractured femur" gap scenario drop
+from false `Strong` (pre-fix) to honest `Weak` (post-fix), with the two
+in-corpus scenarios (malaria, prenatal care) unaffected. The first
+attempt at the threshold (a bare 50% majority) was tried and measured
+*insufficient* — see `MIN_LEXICAL_OVERLAP_FRACTION`'s doc comment for
+why. **What this does not fix:** `Weak` confidence still generates an
+answer with a hedge, by design (a separate, deliberate product decision,
+not touched here) — this closes the *false-confidence* half of Gate 1
+readiness's Gap 1, not the *hard-refusal-rate* half, which remains a
+founder-level product-policy question.
+
 ## 7. Context assembly
 
 **Implemented** — `crates/atlas-engine/src/conversation/rag.rs`'s

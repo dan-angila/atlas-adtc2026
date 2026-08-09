@@ -23,7 +23,7 @@ should inform, not decide.
 
 | Area | Status | Evidence |
 |---|---|---|
-| Runtime (model load, IPC, hardware detection) | Real, tested | `docs/architecture/runtime-architecture.md`, 155 `atlas-engine` unit tests |
+| Runtime (model load, IPC, hardware detection) | Real, tested | `docs/architecture/runtime-architecture.md`, 158 `atlas-engine` unit tests |
 | Document ingestion (MD/CSV/DOCX/PDF) | Real, tested, malformed-input covered | `crates/atlas-engine/src/ingestion/` |
 | Knowledge retrieval (hybrid lexical+semantic) | Real, tested; **confidence signal has a known gap** | `docs/design/rag-pipeline.md` §6, see Gap 1 below |
 | RAG context assembly, citations | Real, proven end to end | `docs/design/rag-pipeline.md` §7–8, `validate_rag_answering.rs` |
@@ -33,24 +33,40 @@ should inform, not decide.
 | Performance/efficiency benchmarks | Real measurements; **none on reference hardware** | `docs/benchmarks/2026-08-08-adtc-benchmark-suite.md`, see Gap 3 |
 | Desktop app (Tauri + React) | Real backend wiring, real UI, real data rendering confirmed; **full interactive flow still unverified — see 2026-08-09 update** | This session; see Gap 4 |
 | Citation/document provenance | Real — organization/jurisdiction/license/retrieved-date now flow from source front matter through storage into the UI, not just the manifest file | `docs/design/rag-pipeline.md` §5/§8, see 2026-08-09 update |
-| Code quality gates | Clean locally, **and now actually clean in CI** — see 2026-08-09 update for a real gap in this claim's prior verification | `cargo fmt`/`clippy -D warnings`/204 tests pass (full workspace, `atlas-app` included); `npm run build`/`lint`/`format:check` clean; `cargo deny check` clean |
+| Code quality gates | Clean locally, **and now actually clean in CI** — see 2026-08-09 update for a real gap in this claim's prior verification | `cargo fmt`/`clippy -D warnings`/207 tests pass (full workspace, `atlas-app` included); `npm run build`/`lint`/`format:check` clean; `cargo deny check` clean |
 
 ## Gaps that block a "ready" verdict
 
 ### Gap 1 — Retrieval confidence doesn't guarantee refusal at real corpus scale (safety-relevant)
 
-`RetrievalConfidence::NoEvidence` — the only outcome that hard-refuses —
-essentially never triggers once a corpus has enough real vocabulary
-overlap with a query. Real testing found a drug-interaction question
-(no supporting content in the corpus) scoring `Strong` confidence
-because it shared the word "treatment" with unrelated documents; a
-generic-verb version of this bug (sharing "take") was found and fixed,
-but the vocabulary-overlap version is not fixable by more stopwords
-without breaking real medical queries. **Concretely: of the 8-document
-corpus's known-unsupported test questions, 0 were hard-refused; all
-were answered with a hedge or false confidence.** This is the single
-most safety-relevant open item. See
-`docs/design/rag-pipeline.md`'s retrieval-confidence section.
+**Partially fixed 2026-08-09 — the false-confidence half; the
+hard-refusal-rate half remains open.** `RetrievalConfidence::NoEvidence`
+— the only outcome that hard-refuses — still essentially never triggers
+once a corpus has enough real vocabulary overlap with a query, and that
+part is unchanged. What real testing also found: a drug-interaction/
+treatment-protocol question could reach falsely *`Strong`* confidence
+(not just an answered hedge) by sharing one or two topic-generic words
+("treatment", "recommended treatment") with an unrelated document — a
+generic-verb version of this (sharing "take") was found and fixed
+earlier by stopwording it, but "treatment" can't be stopworded without
+breaking legitimate treatment questions. Fixed instead by requiring most
+(≥75%) of a query's content words to actually appear in a chunk before
+it counts as genuinely lexically corroborated (`sqlite_store.rs`'s
+`MIN_LEXICAL_OVERLAP_FRACTION`) — measured with a clean before/after run
+of `validate_healthcare_corpus_safety.rs` against the real corpus: the
+"fractured femur" gap scenario dropped from false `Strong` to honest
+`Weak`, with the two in-corpus scenarios unaffected.
+
+**Concretely, updated:** of the 8-document corpus's 3 known-unsupported
+test questions, 0 are hard-refused (unchanged — this is the part still
+open) and 0 now reach false `Strong` confidence (was 1 of 3; all 3 are
+now `Weak`, an honest hedge). Whether `Weak`-confidence answers should
+also hard-refuse — trading recall for safety — is a deliberate,
+documented product decision (`Weak` still generates an answer by
+design), not something this fix changed; that remains the real, open,
+founder-level question for closing this gap the rest of the way. See
+`docs/design/rag-pipeline.md`'s retrieval-confidence section for the
+full before/after measurement.
 
 ### Gap 2 — Multilingual capability is real but narrow
 
@@ -125,13 +141,15 @@ gap to close and should happen before any of the others.
 
 1. **Gap 4** (cheapest, highest-confidence payoff): manually run the
    real app end to end on the actual demo hardware.
-2. **Gap 1** (safety-relevant, no quick fix identified): needs either a
-   real retrieval-quality benchmark to calibrate a better confidence
-   signal, or an explicit, disclosed product decision to accept this
-   limitation for Gate 1 with a clear UX mitigation (e.g., always
-   surfacing "Weak" confidence answers with a visible hedge — already
-   partially done via the system preamble, but not verified to fully
-   prevent overconfident-sounding output at the token level).
+2. **Gap 1** (safety-relevant; the false-confidence half fixed
+   2026-08-09, see above): what remains is a founder-level product
+   decision — accept that `Weak` confidence answers with a hedge (the
+   current, documented design), or make `Weak` also hard-refuse (trades
+   recall for safety, consistent with this project's existing "refusing
+   is safer than guessing" stance for `NoEvidence`, but untested at
+   scale and not something to flip without a disclosed decision). Either
+   way, verify "Weak" confidence answers visibly hedge at the token
+   level, not just via the system preamble (not yet verified).
 3. **Gap 2**: either scope submission claims honestly to the 3 working
    languages, or invest in prompt/sampling changes and re-test before
    claiming broader coverage.

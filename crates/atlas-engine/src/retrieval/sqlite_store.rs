@@ -283,15 +283,38 @@ impl KnowledgeRepository for SqliteKnowledgeRepository {
         let lexical_set: std::collections::HashSet<i64> = lexical_rowids.iter().copied().collect();
         let semantic_set: std::collections::HashSet<i64> =
             semantic_rowids.iter().copied().collect();
+        let query_content_words = content_words(query_text);
 
         let fused = reciprocal_rank_fusion(&[lexical_rowids, semantic_rowids], DEFAULT_RRF_K);
 
         let mut results = Vec::with_capacity(limit.min(fused.len()));
         for (rowid, score) in fused.into_iter().take(limit) {
+            let chunk = load_chunk_by_rowid(&connection, rowid)?;
+            // Membership in the (deliberately wide-net, single-word-OR)
+            // lexical candidate set is correct input for *ranking* — it
+            // isn't a strong enough signal for the *confidence* claim
+            // "an independent method corroborates this," which is what
+            // `matched_lexical` actually means to
+            // `confidence::assess_confidence`: real testing against the
+            // healthcare corpus found a chunk counted as lexically
+            // matched, and a query's top result reaching `Strong`
+            // confidence, purely from sharing one topic-generic word
+            // (e.g. "treatment") with an otherwise unrelated document
+            // (`docs/design/rag-pipeline.md`'s retrieval-confidence
+            // section). Requiring most of the query's content words to
+            // actually appear in the chunk — a structural, countable
+            // property, not a tuned similarity score — closes that
+            // false-corroboration case without touching lexical
+            // *search*/ranking, which stays deliberately permissive for
+            // recall. See [`MIN_LEXICAL_OVERLAP_FRACTION`] for why a
+            // bare majority (0.5) turned out not to be enough.
+            let matched_lexical = lexical_set.contains(&rowid)
+                && lexical_overlap_fraction(&chunk.text, &query_content_words)
+                    >= MIN_LEXICAL_OVERLAP_FRACTION;
             results.push(RetrievedChunk {
-                chunk: load_chunk_by_rowid(&connection, rowid)?,
+                chunk,
                 score,
-                matched_lexical: lexical_set.contains(&rowid),
+                matched_lexical,
                 matched_semantic: semantic_set.contains(&rowid),
             });
         }
@@ -547,38 +570,97 @@ fn semantic_search(
 /// this constant.
 const MAX_COSINE_DISTANCE: f64 = 0.5;
 
-/// Turns free-text into an FTS5 query that treats every non-stopword
-/// word as a literal term (quoted, so FTS5 syntax characters in the
-/// source text — `-`, `"`, `*`, `AND`/`OR`/`NOT` — can't be misread as
-/// query operators), OR-combined for recall — a hybrid-retrieval lexical
-/// leg should cast a wide net and let Reciprocal Rank Fusion (combined
-/// with the semantic leg) do the precision work, rather than requiring
-/// every query word to appear (FTS5's default AND-combination). Shared
-/// stopword handling: see [`super::ENGLISH_STOPWORDS`] for why it exists
-/// and its documented limitations.
-///
-/// If every word in `text` happens to be a stopword, falls back to using
-/// all of them unfiltered — a possibly-noisy match is better than
-/// silently producing an empty lexical query for an otherwise valid
-/// question (e.g. "is it safe?").
-fn fts5_query(text: &str) -> String {
-    let words: Vec<&str> = text.split_whitespace().collect();
-    let content_words: Vec<&str> = words
+/// Lowercases `text` and strips leading/trailing punctuation from each
+/// whitespace-separated word (`"malaria?"` -> `"malaria"`), dropping any
+/// word left empty (pure punctuation). Internal punctuation survives
+/// (`"covid-19"` stays `"covid-19"`) — this is a lightweight
+/// normalization for exact-word-set matching, not a real tokenizer.
+fn normalized_words(text: &str) -> Vec<String> {
+    text.split_whitespace()
+        .map(|word| {
+            word.to_lowercase()
+                .trim_matches(|c: char| !c.is_alphanumeric())
+                .to_string()
+        })
+        .filter(|word| !word.is_empty())
+        .collect()
+}
+
+/// Splits `text` into normalized, stopword-filtered content words. If
+/// every word happens to be a stopword, falls back to all of them
+/// unfiltered — a possibly-noisy result is better than silently
+/// producing nothing for an otherwise valid question (e.g. "is it
+/// safe?"). Shared by [`fts5_query`] (search) and
+/// [`lexical_overlap_fraction`] (confidence).
+fn content_words(text: &str) -> Vec<String> {
+    let words = normalized_words(text);
+    let filtered: Vec<String> = words
         .iter()
-        .copied()
-        .filter(|word| !super::ENGLISH_STOPWORDS.contains(&word.to_lowercase().as_str()))
+        .filter(|word| !super::ENGLISH_STOPWORDS.contains(&word.as_str()))
+        .cloned()
         .collect();
-    let chosen = if content_words.is_empty() {
+    if filtered.is_empty() {
         words
     } else {
-        content_words
-    };
+        filtered
+    }
+}
 
-    chosen
+/// Turns free-text into an FTS5 query that treats every content word as
+/// a literal term (quoted, so FTS5 syntax characters in the source text
+/// — `-`, `"`, `*`, `AND`/`OR`/`NOT` — can't be misread as query
+/// operators), OR-combined for recall — a hybrid-retrieval lexical leg
+/// should cast a wide net and let Reciprocal Rank Fusion (combined with
+/// the semantic leg) do the precision work, rather than requiring every
+/// query word to appear (FTS5's default AND-combination).
+fn fts5_query(text: &str) -> String {
+    content_words(text)
         .into_iter()
         .map(|word| format!("\"{}\"", word.replace('"', "\"\"")))
         .collect::<Vec<_>>()
         .join(" OR ")
+}
+
+/// The minimum fraction of a query's content words that must actually
+/// appear in a chunk for that chunk to count as lexically corroborated
+/// for confidence purposes (see the doc comment at
+/// [`SqliteKnowledgeRepository::search`]'s `matched_lexical`
+/// computation) — a real, countable property, not a tuned similarity
+/// score.
+///
+/// **0.5 (a bare majority) was tried first and measured insufficient**
+/// against the real 8-document healthcare corpus
+/// (`crates/atlas-engine/examples/validate_healthcare_corpus_safety.rs`):
+/// the query "What is the recommended treatment for a fractured femur?"
+/// (content words: recommended/treatment/fractured/femur) still reached
+/// `Strong` confidence at 0.5, because "recommended treatment" is a
+/// boilerplate phrase pattern shared by nearly every guideline document
+/// in the corpus — 2 of 4 words matching by genre convention, not topical
+/// relevance. Raised to `0.75` and re-measured: that scenario, and the
+/// other two "gap" scenarios (drug interaction, dosage — both already
+/// `Weak` at 0.5), all correctly stayed below `Strong`, while both
+/// in-corpus scenarios (malaria, prenatal care) were unaffected. Still
+/// not a substitute for real tuning against a relevance-judged corpus —
+/// the corpus this was measured against has only 8 documents — but a
+/// real, evidence-based number arrived at by testing the actual failure
+/// mode, not a guess.
+const MIN_LEXICAL_OVERLAP_FRACTION: f64 = 0.75;
+
+/// What fraction of `query_content_words` appear (case-insensitive,
+/// whole-word) in `chunk_text`. Word-boundary matching via a `HashSet`
+/// of the chunk's own lowercased words — not a substring check — so
+/// "cat" doesn't spuriously match inside "category".
+fn lexical_overlap_fraction(chunk_text: &str, query_content_words: &[String]) -> f64 {
+    if query_content_words.is_empty() {
+        return 1.0;
+    }
+    let chunk_words: std::collections::HashSet<String> =
+        normalized_words(chunk_text).into_iter().collect();
+    let matched = query_content_words
+        .iter()
+        .filter(|word| chunk_words.contains(*word))
+        .count();
+    matched as f64 / query_content_words.len() as f64
 }
 
 fn load_chunk_by_rowid(connection: &Connection, rowid: i64) -> Result<ChunkRecord, RetrievalError> {
@@ -839,6 +921,58 @@ mod tests {
     }
 
     #[test]
+    fn sharing_one_topic_generic_content_word_is_not_enough_for_a_lexical_match() {
+        // Regression test for the real, unresolved-until-now failure
+        // documented in docs/design/rag-pipeline.md's retrieval-
+        // confidence section (Gap 1 of docs/execution/gate-1-readiness.md):
+        // against the real 8-document healthcare corpus, a
+        // drug-interaction/treatment-protocol question reached Strong
+        // confidence purely because it shared one topic-generic content
+        // word ("treatment") with a stored chunk about a completely
+        // different condition. Unlike "take"/"for"/"a" (fixed by adding
+        // them to the stopword list), "treatment" is a real, meaningful
+        // medical term that can't be stopworded without breaking
+        // legitimate treatment questions — this needs the query's
+        // *other* content words to also be present, not just one.
+        let repo = SqliteKnowledgeRepository::open_in_memory(3).unwrap();
+        let doc = document();
+        repo.store_document(&doc).unwrap();
+        repo.store_chunk(
+            &chunk_for(
+                doc.id,
+                "regular treatment with insulin controls blood sugar levels",
+            ),
+            &[0.0, 0.0, 0.0],
+        )
+        .unwrap();
+
+        // Content words: "recommended", "treatment", "protocol",
+        // "tuberculosis" (4 words; "what"/"is"/"the"/"for" are
+        // stopwords). The stored chunk shares only "treatment" — 1 of 4,
+        // below the majority bar. A zero query vector isolates this to
+        // the lexical leg.
+        let results = repo
+            .search(
+                "what is the recommended treatment protocol for tuberculosis",
+                &[0.0, 0.0, 0.0],
+                10,
+            )
+            .unwrap();
+
+        // The chunk is still a real FTS5 candidate (it does contain
+        // "treatment") and so is still returned and rankable — search
+        // recall is untouched. What must change is whether it's
+        // reported as genuinely *corroborated*: it isn't, so it must
+        // never be able to reach Strong confidence on this signal alone.
+        assert_eq!(results.len(), 1);
+        assert!(
+            !results[0].matched_lexical,
+            "sharing one topic-generic content word out of four must not count as a genuine \
+             lexical corroboration"
+        );
+    }
+
+    #[test]
     fn a_stored_chunk_round_trips_through_semantic_search() {
         let repo = SqliteKnowledgeRepository::open_in_memory(3).unwrap();
         let doc = document();
@@ -1011,5 +1145,44 @@ mod tests {
         // as query operators if passed through unquoted.
         let result = repo.search("AND OR NOT \"unterminated", &[1.0, 0.0, 0.0], 10);
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn lexical_overlap_fraction_counts_real_whole_word_matches() {
+        let query = content_words("what is the recommended treatment protocol for tuberculosis");
+        assert_eq!(
+            query,
+            vec!["recommended", "treatment", "protocol", "tuberculosis"]
+        );
+
+        assert_eq!(
+            lexical_overlap_fraction("regular treatment with insulin", &query),
+            0.25,
+            "1 of 4 query content words present"
+        );
+        assert_eq!(
+            lexical_overlap_fraction(
+                "recommended treatment protocol for tuberculosis, per WHO guidance.",
+                &query
+            ),
+            1.0,
+            "all 4 present, despite trailing punctuation on the last word"
+        );
+        assert_eq!(
+            lexical_overlap_fraction("completely unrelated text about diabetes", &query),
+            0.0,
+        );
+    }
+
+    #[test]
+    fn lexical_overlap_fraction_does_not_substring_match() {
+        // "cat" must not spuriously match inside "category" — this is
+        // whole-word set membership, not a substring check.
+        let query = vec!["cat".to_string()];
+        assert_eq!(
+            lexical_overlap_fraction("a broad category of things", &query),
+            0.0
+        );
+        assert_eq!(lexical_overlap_fraction("the cat sat down", &query), 1.0);
     }
 }
