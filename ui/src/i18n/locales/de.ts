@@ -209,6 +209,13 @@ const de: Translations = {
     semanticBadge: "Semantisch",
     retrievedOn: (date) => `Abgerufen am ${date}`,
     scoreLabel: (score) => `Wert ${score.toFixed(3)}`,
+    viewFullEvidence: "Vollständigen Beleg ansehen",
+    backToResults: "Zurück zu den Ergebnissen",
+    fullEvidenceHeading: "Vollständiger Belegausschnitt",
+    sourceHeading: "Quelle",
+    otherMatchesHeading: "Weitere Treffer in diesem Dokument",
+    scopeNote:
+      "Atlas zeigt abgerufene Textstellen aus Ihren geladenen Dokumenten, keine strukturierte Arzneimitteldatenbank. Dosierungswerkzeuge, Interaktionstabellen und Klassifikationscodes werden nur angezeigt, wenn sie im abgerufenen Text enthalten sind.",
   },
 
   languagesScreen: {
@@ -282,6 +289,18 @@ const de: Translations = {
     highContrast: "Hoher Kontrast",
     reduceMotion: "Bewegung reduzieren",
     alwaysShowFocus: "Fokusring immer anzeigen",
+    sectionReadability: "Lesbarkeit",
+    sectionAssistiveTools: "Assistenzwerkzeuge",
+    sectionDisplay: "Anzeige",
+    readableSpacing: "Lesefreundlicher Abstand",
+    highlightLinks: "Links hervorheben",
+    bigCursor: "Großer Cursor",
+    readingMask: "Lesehilfe",
+    readPage: "Seite vorlesen",
+    stopReading: "Vorlesen stoppen",
+    invertColors: "Farben umkehren",
+    grayscale: "Graustufen",
+    skipToContent: "Zum Hauptinhalt springen",
     resetDefaults: "Auf Standard zurücksetzen",
   },
 };

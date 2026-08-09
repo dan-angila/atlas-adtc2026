@@ -187,6 +187,13 @@ const ja: Translations = {
     semanticBadge: "意味一致",
     retrievedOn: (date) => `取得日: ${date}`,
     scoreLabel: (score) => `スコア ${score.toFixed(3)}`,
+    viewFullEvidence: "完全な根拠を表示",
+    backToResults: "結果に戻る",
+    fullEvidenceHeading: "根拠の全文",
+    sourceHeading: "出典",
+    otherMatchesHeading: "この文書内の他の一致箇所",
+    scopeNote:
+      "Atlasは読み込まれた文書から取得した抜粋を表示するもので、構造化された薬剤データベースではありません。投与量ツール、相互作用表、分類コードは、取得したテキストに実際に含まれている場合にのみ表示されます。",
   },
 
   languagesScreen: {
@@ -260,6 +267,18 @@ const ja: Translations = {
     highContrast: "ハイコントラスト",
     reduceMotion: "アニメーションを減らす",
     alwaysShowFocus: "フォーカスリングを常に表示",
+    sectionReadability: "読みやすさ",
+    sectionAssistiveTools: "支援ツール",
+    sectionDisplay: "表示",
+    readableSpacing: "読みやすい間隔",
+    highlightLinks: "リンクを強調表示",
+    bigCursor: "大きいカーソル",
+    readingMask: "読書ガイド",
+    readPage: "ページを読み上げる",
+    stopReading: "読み上げを停止",
+    invertColors: "色を反転",
+    grayscale: "グレースケール",
+    skipToContent: "メインコンテンツへスキップ",
     resetDefaults: "初期設定に戻す",
   },
 };

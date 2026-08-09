@@ -176,6 +176,13 @@ const am: Translations = {
     semanticBadge: "የትርጉም",
     retrievedOn: (date) => `በ${date} ተገኝቷል`,
     scoreLabel: (score) => `ውጤት ${score.toFixed(3)}`,
+    viewFullEvidence: "ሙሉ ማስረጃ ይመልከቱ",
+    backToResults: "ወደ ውጤቶች ተመለስ",
+    fullEvidenceHeading: "ሙሉ የማስረጃ ክፍል",
+    sourceHeading: "ምንጭ",
+    otherMatchesHeading: "በዚህ ሰነድ ውስጥ ያሉ ሌሎች ተዛማጆች",
+    scopeNote:
+      "አትላስ ከጫኗቸው ሰነዶች የተገኙ ክፍሎችን ያሳያል፣ የተዋቀረ የመድሃኒት ዳታቤዝ አይደለም። የመጠን መሳሪያዎች፣ የግንኙነት ሰንጠረዦች እና የመመደቢያ ኮዶች የሚታዩት በተገኘው ጽሑፍ ውስጥ ካሉ ብቻ ነው።",
   },
 
   languagesScreen: {
@@ -249,6 +256,18 @@ const am: Translations = {
     highContrast: "ከፍተኛ ንፅፅር",
     reduceMotion: "እንቅስቃሴን ቀንስ",
     alwaysShowFocus: "የትኩረት ቀለበትን ሁልጊዜ አሳይ",
+    sectionReadability: "ለማንበብ ቀላል",
+    sectionAssistiveTools: "የድጋፍ መሣሪያዎች",
+    sectionDisplay: "ማሳያ",
+    readableSpacing: "ሰፊ የንባብ ክፍተት",
+    highlightLinks: "አገናኞችን አጉላ",
+    bigCursor: "ትልቅ ጠቋሚ",
+    readingMask: "የንባብ መመሪያ",
+    readPage: "ገጹን በድምጽ አንብብ",
+    stopReading: "ንባብ አቁም",
+    invertColors: "ቀለማትን ግልብጥ",
+    grayscale: "ግራጫማ",
+    skipToContent: "ወደ ዋና ይዘት ዝለል",
     resetDefaults: "ወደ ነባሪ መልስ",
   },
 };

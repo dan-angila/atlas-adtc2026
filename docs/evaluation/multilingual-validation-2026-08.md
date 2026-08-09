@@ -246,4 +246,22 @@ itself, then ignored it completely and answered in English anyway.
   non-English tokenization or stopword handling
   (`docs/baseline/engineering-baseline.md`'s "Known open items").
   Reasonable to expect this compounds the generation-side problem found
-  here, but it has not been measured.
+  here, but it has not been measured. A follow-up on *why* generation
+  is weak for most non-English languages — a real, measured test of a
+  raw-prompt-vs-chat-template hypothesis, not a retrieval question — is
+  in
+  [`multilingual-chat-template-diagnostic-2026-08-10.md`](multilingual-chat-template-diagnostic-2026-08-10.md).
+- **Additional African-language candidates not in either pack**:
+  Sesotho, Setswana, Chichewa, Afrikaans, and Malagasy have been raised
+  as candidates for the Africa Language Pack (`africa_pack()` in
+  `crates/atlas-engine/src/inference/language.rs`) but are **not**
+  registered as of this writing, and this pass did not add them. Adding
+  a language honestly requires, at minimum: a `LanguageDescriptor`
+  entry, frontend i18n locale coverage
+  (`ui/src/i18n/locales/*.ts`), and — per this report's own standard —
+  a real generation test before any `validation_status()` entry beyond
+  "registered, not yet tested" is written for it. None of that work has
+  been done for these five languages; registering them without it would
+  repeat exactly the "registered ≠ working" gap this whole report
+  exists to correct. Treat this as an open backlog item, not a
+  completed audit.

@@ -46,6 +46,9 @@ export function AppShell({
 
   return (
     <div className="app-shell">
+      <a className="skip-to-content" href="#app-main-content">
+        {t.accessibility.skipToContent}
+      </a>
       <aside className="app-sidebar">
         <div className="atlas-sidebar-card">
           <div className="app-brand">
@@ -106,7 +109,9 @@ export function AppShell({
         </div>
       </header>
 
-      <main className="app-main">{children}</main>
+      <main className="app-main" id="app-main-content" tabIndex={-1}>
+        {children}
+      </main>
     </div>
   );
 }

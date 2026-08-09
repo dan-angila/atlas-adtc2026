@@ -196,6 +196,13 @@ const hi: Translations = {
     semanticBadge: "अर्थपरक",
     retrievedOn: (date) => `${date} को प्राप्त`,
     scoreLabel: (score) => `स्कोर ${score.toFixed(3)}`,
+    viewFullEvidence: "पूरा प्रमाण देखें",
+    backToResults: "परिणामों पर वापस जाएं",
+    fullEvidenceHeading: "पूरा प्रमाण अंश",
+    sourceHeading: "स्रोत",
+    otherMatchesHeading: "इस दस्तावेज़ में अन्य मिलान",
+    scopeNote:
+      "Atlas आपके लोड किए गए दस्तावेज़ों से प्राप्त अंश दिखाता है, संरचित दवा डेटाबेस नहीं। खुराक उपकरण, इंटरैक्शन तालिकाएँ, और वर्गीकरण कोड तभी दिखाए जाते हैं जब वे प्राप्त पाठ में मौजूद हों।",
   },
 
   languagesScreen: {
@@ -269,6 +276,18 @@ const hi: Translations = {
     highContrast: "उच्च कंट्रास्ट",
     reduceMotion: "गति कम करें",
     alwaysShowFocus: "फ़ोकस रिंग हमेशा दिखाएँ",
+    sectionReadability: "पठनीयता",
+    sectionAssistiveTools: "सहायक उपकरण",
+    sectionDisplay: "डिस्प्ले",
+    readableSpacing: "आसान पठन दूरी",
+    highlightLinks: "लिंक हाइलाइट करें",
+    bigCursor: "बड़ा कर्सर",
+    readingMask: "रीडिंग गाइड",
+    readPage: "पेज को ज़ोर से पढ़ें",
+    stopReading: "पढ़ना बंद करें",
+    invertColors: "रंग उलटें",
+    grayscale: "ग्रेस्केल",
+    skipToContent: "मुख्य सामग्री पर जाएं",
     resetDefaults: "डिफ़ॉल्ट पर रीसेट करें",
   },
 };

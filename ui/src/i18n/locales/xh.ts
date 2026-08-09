@@ -202,6 +202,13 @@ const xh: Translations = {
     semanticBadge: "Ngentsingiselo",
     retrievedOn: (date) => `Kufunyenwe ${date}`,
     scoreLabel: (score) => `Amanqaku ${score.toFixed(3)}`,
+    viewFullEvidence: "Jonga ubungqina obupheleleyo",
+    backToResults: "Buyela kwiziphumo",
+    fullEvidenceHeading: "Icandelo lobungqina elipheleleyo",
+    sourceHeading: "Umthombo",
+    otherMatchesHeading: "Ezinye izifaniso kolu xwebhu",
+    scopeNote:
+      "I-Atlas ibonisa amacandelo afunyenwe kumaxwebhu owafakileyo, hayi uvimba wedatha yamayeza ohlelekileyo. Izixhobo zokulinganisa umyinge, iitheyibhile zonxibelelwano, kunye neekhowudi zohlelo azibonakali ngaphandle kokuba zikhona kumbhalo ofunyenweyo.",
   },
 
   languagesScreen: {
@@ -276,6 +283,18 @@ const xh: Translations = {
     highContrast: "Umahluko Ophezulu",
     reduceMotion: "Nciphisa Intshukumo",
     alwaysShowFocus: "Bonisa umsesane wokugxila ngamaxesha onke",
+    sectionReadability: "Ukufunda okulula",
+    sectionAssistiveTools: "Izixhobo zoncedo",
+    sectionDisplay: "Ukubonisa",
+    readableSpacing: "Isithuba sokufunda okulula",
+    highlightLinks: "Qaqambisa amakhonkco",
+    bigCursor: "Isikhomba esikhulu",
+    readingMask: "Isikhokelo sokufunda",
+    readPage: "Funda iphepha ngelizwi",
+    stopReading: "Yeka ukufunda",
+    invertColors: "Guqula imibala",
+    grayscale: "Umbala ompunga",
+    skipToContent: "Tsibela kokuqulathiweyo okuyintloko",
     resetDefaults: "Buyisela Kokumiselweyo",
   },
 };

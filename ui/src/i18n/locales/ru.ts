@@ -202,6 +202,13 @@ const ru: Translations = {
     semanticBadge: "Смысловой",
     retrievedOn: (date) => `Получено ${date}`,
     scoreLabel: (score) => `Оценка ${score.toFixed(3)}`,
+    viewFullEvidence: "Показать полное свидетельство",
+    backToResults: "Вернуться к результатам",
+    fullEvidenceHeading: "Полный фрагмент свидетельства",
+    sourceHeading: "Источник",
+    otherMatchesHeading: "Другие совпадения в этом документе",
+    scopeNote:
+      "Atlas показывает фрагменты, извлечённые из загруженных документов, а не структурированную базу данных лекарств. Инструменты дозирования, таблицы взаимодействий и коды классификации отображаются только если они присутствуют в извлечённом тексте.",
   },
 
   languagesScreen: {
@@ -275,6 +282,18 @@ const ru: Translations = {
     highContrast: "Высокая контрастность",
     reduceMotion: "Уменьшить анимацию",
     alwaysShowFocus: "Всегда показывать индикатор фокуса",
+    sectionReadability: "Удобочитаемость",
+    sectionAssistiveTools: "Вспомогательные инструменты",
+    sectionDisplay: "Отображение",
+    readableSpacing: "Удобный интервал для чтения",
+    highlightLinks: "Выделять ссылки",
+    bigCursor: "Крупный курсор",
+    readingMask: "Направляющая для чтения",
+    readPage: "Озвучить страницу",
+    stopReading: "Остановить чтение",
+    invertColors: "Инвертировать цвета",
+    grayscale: "Оттенки серого",
+    skipToContent: "Перейти к основному содержимому",
     resetDefaults: "Сбросить настройки",
   },
 };

@@ -203,6 +203,13 @@ const rn: Translations = {
     semanticBadge: "Insobanuro",
     retrievedOn: (date) => `Vyabonetse ${date}`,
     scoreLabel: (score) => `Amanota ${score.toFixed(3)}`,
+    viewFullEvidence: "Raba ivyemezo vyuzuye",
+    backToResults: "Subira ku bisubizo",
+    fullEvidenceHeading: "Igice c'ivyemezo cuzuye",
+    sourceHeading: "Inkomoko",
+    otherMatchesHeading: "Ibindi bihuye biri muri iyi nyandiko",
+    scopeNote:
+      "Atlas yerekana ibice vyakuwe mu nyandiko washizemwo, atari ububiko bw'imiti bugenwe. Ibikoresho vyo gupima ingano y'imiti, imbonerahamwe z'ihuzagurika, n'amakode yo gushira mu byiciro ntibiboneka keretse biri mu nyandiko yakuwe.",
   },
 
   languagesScreen: {
@@ -276,6 +283,18 @@ const rn: Translations = {
     highContrast: "Itandukaniro Rinini",
     reduceMotion: "Kugabanya Imvurugano",
     alwaysShowFocus: "Erekana buri gihe umupeta w'aho hitwararitse",
+    sectionReadability: "Gusoma vyoroshe",
+    sectionAssistiveTools: "Ibikoresho vy'ubufasha",
+    sectionDisplay: "Kwerekana",
+    readableSpacing: "Umwanya wo gusoma vyoroshe",
+    highlightLinks: "Erekana amahuza",
+    bigCursor: "Akanyoni kanini",
+    readingMask: "Umuyoborozi wo gusoma",
+    readPage: "Soma urupapuro mw'ijwi",
+    stopReading: "Hagarika gusoma",
+    invertColors: "Hindura amabara",
+    grayscale: "Ibara ry'umukungugu",
+    skipToContent: "Simbuka uje ku vyanditswe vy'ingenzi",
     resetDefaults: "Garukana Igenamiterere Risanzwe",
   },
 };

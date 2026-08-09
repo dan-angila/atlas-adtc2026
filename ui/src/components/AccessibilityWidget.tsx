@@ -151,6 +151,8 @@ function LanguagePicker() {
   );
 }
 
+const CAN_READ_ALOUD = typeof window !== "undefined" && "speechSynthesis" in window;
+
 /**
  * Global, persistent accessibility control — reachable from every
  * screen (rendered once at the app shell level). Every control here
@@ -162,6 +164,7 @@ function LanguagePicker() {
 export function AccessibilityWidget() {
   const t = useTranslation();
   const [open, setOpen] = useState(false);
+  const [speaking, setSpeaking] = useState(false);
   const { settings, update, reset } = useAccessibility();
   const panelRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -189,6 +192,44 @@ export function AccessibilityWidget() {
       document.removeEventListener("mousedown", handlePointerDown);
     };
   }, [open, close]);
+
+  // Reading guide: track pointer position into a CSS custom property so
+  // index.css's `[data-a11y-reading-mask="on"] body::after` mask can follow
+  // it without a re-render on every mousemove.
+  useEffect(() => {
+    if (!settings.readingMask) return;
+    const handleMouseMove = (event: MouseEvent) => {
+      document.documentElement.style.setProperty("--a11y-mask-y", `${event.clientY}px`);
+    };
+    document.addEventListener("mousemove", handleMouseMove);
+    return () => document.removeEventListener("mousemove", handleMouseMove);
+  }, [settings.readingMask]);
+
+  useEffect(() => {
+    if (!CAN_READ_ALOUD) return;
+    return () => {
+      window.speechSynthesis.cancel();
+    };
+  }, []);
+
+  const toggleReadPage = useCallback(() => {
+    if (!CAN_READ_ALOUD) return;
+    if (speaking) {
+      window.speechSynthesis.cancel();
+      setSpeaking(false);
+      return;
+    }
+    const main = document.getElementById("app-main-content");
+    const text = (main ?? document.body).innerText.trim();
+    if (!text) return;
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = document.documentElement.lang || "en";
+    utterance.onend = () => setSpeaking(false);
+    utterance.onerror = () => setSpeaking(false);
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(utterance);
+    setSpeaking(true);
+  }, [speaking]);
 
   return (
     <>
@@ -236,12 +277,82 @@ export function AccessibilityWidget() {
             </div>
           </div>
 
+          <h4 className="a11y-section-title">{t.accessibility.sectionReadability}</h4>
+
+          <div className="a11y-row">
+            <span>{t.accessibility.readableSpacing}</span>
+            <Switch
+              on={settings.readableSpacing}
+              onToggle={() => update("readableSpacing", !settings.readableSpacing)}
+              label={t.accessibility.readableSpacing}
+            />
+          </div>
+
+          <div className="a11y-row">
+            <span>{t.accessibility.highlightLinks}</span>
+            <Switch
+              on={settings.highlightLinks}
+              onToggle={() => update("highlightLinks", !settings.highlightLinks)}
+              label={t.accessibility.highlightLinks}
+            />
+          </div>
+
+          <h4 className="a11y-section-title">{t.accessibility.sectionAssistiveTools}</h4>
+
+          <div className="a11y-row">
+            <span>{t.accessibility.bigCursor}</span>
+            <Switch
+              on={settings.bigCursor}
+              onToggle={() => update("bigCursor", !settings.bigCursor)}
+              label={t.accessibility.bigCursor}
+            />
+          </div>
+
+          <div className="a11y-row">
+            <span>{t.accessibility.readingMask}</span>
+            <Switch
+              on={settings.readingMask}
+              onToggle={() => update("readingMask", !settings.readingMask)}
+              label={t.accessibility.readingMask}
+            />
+          </div>
+
+          {CAN_READ_ALOUD && (
+            <button
+              type="button"
+              className="btn btn-secondary a11y-readpage"
+              onClick={toggleReadPage}
+            >
+              {speaking ? t.accessibility.stopReading : t.accessibility.readPage}
+            </button>
+          )}
+
+          <h4 className="a11y-section-title">{t.accessibility.sectionDisplay}</h4>
+
           <div className="a11y-row">
             <span>{t.accessibility.highContrast}</span>
             <Switch
               on={settings.highContrast}
               onToggle={() => update("highContrast", !settings.highContrast)}
               label={t.accessibility.highContrast}
+            />
+          </div>
+
+          <div className="a11y-row">
+            <span>{t.accessibility.invertColors}</span>
+            <Switch
+              on={settings.invertColors}
+              onToggle={() => update("invertColors", !settings.invertColors)}
+              label={t.accessibility.invertColors}
+            />
+          </div>
+
+          <div className="a11y-row">
+            <span>{t.accessibility.grayscale}</span>
+            <Switch
+              on={settings.grayscale}
+              onToggle={() => update("grayscale", !settings.grayscale)}
+              label={t.accessibility.grayscale}
             />
           </div>
 

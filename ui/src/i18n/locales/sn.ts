@@ -201,6 +201,13 @@ const sn: Translations = {
     semanticBadge: "Zvirevo",
     retrievedOn: (date) => `Zvakawanikwa ${date}`,
     scoreLabel: (score) => `Zvibodzwa ${score.toFixed(3)}`,
+    viewFullEvidence: "Ona uchapupu hwakazara",
+    backToResults: "Dzokera kumhinduro",
+    fullEvidenceHeading: "Chikamu chouchapupu chakazara",
+    sourceHeading: "Kwazvakabva",
+    otherMatchesHeading: "Zvimwe zvakafanana mugwaro rino",
+    scopeNote:
+      "Atlas inoratidza zvikamu zvakabva mumagwaro amaisa, kwete chivigiro chakarongwa chemishonga. Zviridzwa zvekuyera mubairo, matafura ekudyidzana, uye makodhi ekurongedza hazviratidzwe kunze kwekunge ziri mumashoko awanikwa.",
   },
 
   languagesScreen: {
@@ -274,6 +281,18 @@ const sn: Translations = {
     highContrast: "Mutsauko Mukuru",
     reduceMotion: "Deredza Kufamba",
     alwaysShowFocus: "Ratidza mhete yokutarisisa nguva dzose",
+    sectionReadability: "Kuverenga zviri nyore",
+    sectionAssistiveTools: "Zvishandiso zvorubatsiro",
+    sectionDisplay: "Kuratidzwa",
+    readableSpacing: "Mukana wokuverenga zviri nyore",
+    highlightLinks: "Ratidza zvinongedzo",
+    bigCursor: "Mucherechedzo mukuru",
+    readingMask: "Nhungamiro yokuverenga",
+    readPage: "Verenga peji nenzwi",
+    stopReading: "Mira kuverenga",
+    invertColors: "Shandura mavara",
+    grayscale: "Ivhu-ivhu",
+    skipToContent: "Svetukira kune zvakakosha",
     resetDefaults: "Dzosera Zviri Pakutanga",
   },
 };

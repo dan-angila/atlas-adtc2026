@@ -204,6 +204,13 @@ const ha: Translations = {
     semanticBadge: "Na ma'ana",
     retrievedOn: (date) => `An samu ${date}`,
     scoreLabel: (score) => `Maki ${score.toFixed(3)}`,
+    viewFullEvidence: "Duba cikakkiyar hujja",
+    backToResults: "Koma zuwa sakamako",
+    fullEvidenceHeading: "Cikakken sashin hujja",
+    sourceHeading: "Tushe",
+    otherMatchesHeading: "Sauran daidaituwa a cikin wannan takarda",
+    scopeNote:
+      "Atlas yana nuna sassan da aka samo daga takardun da ka loda, ba tarin bayanan magunguna da aka tsara ba. Kayan aikin ƙididdige adadin magani, jadawalin mu'amala, da lambobin rarrabuwa ba a nuna su sai idan sun kasance a cikin rubutun da aka samo.",
   },
 
   languagesScreen: {
@@ -277,6 +284,18 @@ const ha: Translations = {
     highContrast: "Bambanci mai girma",
     reduceMotion: "Rage motsi",
     alwaysShowFocus: "Koyaushe nuna zoben mayar da hankali",
+    sectionReadability: "Sauƙin karatu",
+    sectionAssistiveTools: "Kayan aikin taimako",
+    sectionDisplay: "Nunawa",
+    readableSpacing: "Sarari mai sauƙin karatu",
+    highlightLinks: "Haskaka hanyoyin haɗi",
+    bigCursor: "Babban alama",
+    readingMask: "Jagorar karatu",
+    readPage: "Karanta shafi da murya",
+    stopReading: "Dakatar da karatu",
+    invertColors: "Juya launuka",
+    grayscale: "Launin toka",
+    skipToContent: "Tsallaka zuwa babban abin ciki",
     resetDefaults: "Mayar da tsoho",
   },
 };

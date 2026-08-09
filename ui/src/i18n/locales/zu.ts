@@ -202,6 +202,13 @@ const zu: Translations = {
     semanticBadge: "Ngencazelo",
     retrievedOn: (date) => `Kutholwe ${date}`,
     scoreLabel: (score) => `Amaphuzu ${score.toFixed(3)}`,
+    viewFullEvidence: "Buka ubufakazi obuphelele",
+    backToResults: "Buyela emiphumeleni",
+    fullEvidenceHeading: "Isigaba sobufakazi esiphelele",
+    sourceHeading: "Umthombo",
+    otherMatchesHeading: "Okunye okufanayo kulo mqulu",
+    scopeNote:
+      "I-Atlas ibonisa izingxenye ezitholwe emadokhumentini owafakile, hhayi isizindalwazi semithi esihlelekile. Amathuluzi okulinganisa umthamo, amathebula okuxhumana, kanye namakhodi okuhlukanisa awabonakali ngaphandle kwalapho ekhona embhalweni otholiwe.",
   },
 
   languagesScreen: {
@@ -276,6 +283,18 @@ const zu: Translations = {
     highContrast: "Umehluko Ophezulu",
     reduceMotion: "Nciphisa Ukunyakaza",
     alwaysShowFocus: "Njalo bonisa indandatho yokugxila",
+    sectionReadability: "Ukufunda okulula",
+    sectionAssistiveTools: "Amathuluzi osizo",
+    sectionDisplay: "Ukubonisa",
+    readableSpacing: "Isikhala sokufunda okulula",
+    highlightLinks: "Qhakambisa izixhumanisi",
+    bigCursor: "Isikhombisi esikhulu",
+    readingMask: "Umhlahlandlela wokufunda",
+    readPage: "Funda ikhasi ngezwi",
+    stopReading: "Misa ukufunda",
+    invertColors: "Guqula imibala",
+    grayscale: "Umbala ompunga",
+    skipToContent: "Gxuma uye kokuqukethwe okuyinhloko",
     resetDefaults: "Setha Kabusha Okuzenzakalelayo",
   },
 };

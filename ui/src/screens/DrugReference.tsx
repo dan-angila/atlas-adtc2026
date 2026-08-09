@@ -1,10 +1,86 @@
 import { useState } from "react";
 
-import { AlertIcon, DropletIcon, SearchIcon } from "../components/icons";
+import { AlertIcon, ChevronRightIcon, DropletIcon, SearchIcon } from "../components/icons";
 import { Badge, confidenceTone } from "../components/Badge";
 import { atlas } from "../lib/tauri";
 import { useTranslation } from "../i18n";
-import type { KnowledgeSearchResponseDto, RuntimeStatusDto } from "../lib/tauri";
+import type {
+  KnowledgeSearchResponseDto,
+  KnowledgeSearchResultDto,
+  RuntimeStatusDto,
+} from "../lib/tauri";
+
+function EvidenceDetail({
+  result,
+  otherMatches,
+  onSelect,
+  onBack,
+}: {
+  result: KnowledgeSearchResultDto;
+  otherMatches: KnowledgeSearchResultDto[];
+  onSelect: (result: KnowledgeSearchResultDto) => void;
+  onBack: () => void;
+}) {
+  const t = useTranslation();
+  const meta = [result.organization, result.jurisdiction, result.format].filter(Boolean);
+
+  return (
+    <div className="stack-lg evidence-detail">
+      <button type="button" className="btn btn-secondary evidence-detail-back" onClick={onBack}>
+        {t.drugReference.backToResults}
+      </button>
+
+      <div>
+        <h3>{result.documentTitle ?? t.common.untitledSource}</h3>
+        {result.headingPath.length > 0 && (
+          <p className="knowledge-path">{result.headingPath.join(" / ")}</p>
+        )}
+      </div>
+
+      <div className="knowledge-card-topline">
+        <Badge tone={result.license ? "success" : "neutral"}>
+          {result.license ? t.drugReference.licenseVerified : t.drugReference.localCorpus}
+        </Badge>
+        <div className="evidence-match-badges">
+          {result.matchedLexical && <Badge tone="info">{t.drugReference.lexicalBadge}</Badge>}
+          {result.matchedSemantic && <Badge tone="warning">{t.drugReference.semanticBadge}</Badge>}
+        </div>
+      </div>
+
+      <section className="atlas-panel evidence-detail-section">
+        <h4>{t.drugReference.fullEvidenceHeading}</h4>
+        <p className="evidence-full-text">{result.excerpt}</p>
+      </section>
+
+      <section className="atlas-panel evidence-detail-section">
+        <h4>{t.drugReference.sourceHeading}</h4>
+        <div className="knowledge-meta-list">
+          {meta.length > 0 && <span>{meta.join(" · ")}</span>}
+          {result.retrievedDate && <span>{t.drugReference.retrievedOn(result.retrievedDate)}</span>}
+          <span>{t.drugReference.scoreLabel(result.score)}</span>
+        </div>
+      </section>
+
+      {otherMatches.length > 0 && (
+        <section className="atlas-panel evidence-detail-section">
+          <h4>{t.drugReference.otherMatchesHeading}</h4>
+          <ul className="evidence-other-matches">
+            {otherMatches.map((match) => (
+              <li key={match.chunkId}>
+                <button type="button" onClick={() => onSelect(match)}>
+                  <span>{match.headingPath.join(" / ") || t.common.untitledSource}</span>
+                  <ChevronRightIcon aria-hidden="true" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      <p className="notice evidence-scope-note">{t.drugReference.scopeNote}</p>
+    </div>
+  );
+}
 
 export function DrugReference({ runtimeStatus }: { runtimeStatus: RuntimeStatusDto | null }) {
   const t = useTranslation();
@@ -12,6 +88,7 @@ export function DrugReference({ runtimeStatus }: { runtimeStatus: RuntimeStatusD
   const [report, setReport] = useState<KnowledgeSearchResponseDto | null>(null);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selected, setSelected] = useState<KnowledgeSearchResultDto | null>(null);
 
   const runtimeReady = runtimeStatus?.state === "ready";
 
@@ -21,6 +98,7 @@ export function DrugReference({ runtimeStatus }: { runtimeStatus: RuntimeStatusD
     setDraft(trimmed);
     setRunning(true);
     setError(null);
+    setSelected(null);
     try {
       const result = await atlas.searchKnowledge(trimmed);
       setReport(result);
@@ -104,7 +182,19 @@ export function DrugReference({ runtimeStatus }: { runtimeStatus: RuntimeStatusD
           </div>
         )}
 
-        {report && (
+        {report && selected && (
+          <EvidenceDetail
+            result={selected}
+            otherMatches={report.results.filter(
+              (result) =>
+                result.chunkId !== selected.chunkId && result.documentId === selected.documentId,
+            )}
+            onSelect={setSelected}
+            onBack={() => setSelected(null)}
+          />
+        )}
+
+        {report && !selected && (
           <div className="stack-lg">
             <div className="toolbar">
               <Badge tone={confidenceTone(report.confidence)}>
@@ -135,6 +225,10 @@ export function DrugReference({ runtimeStatus }: { runtimeStatus: RuntimeStatusD
                   const meta = [result.organization, result.jurisdiction, result.format].filter(
                     Boolean,
                   );
+                  const preview =
+                    result.excerpt.length > 280
+                      ? `${result.excerpt.slice(0, 280).trimEnd()}...`
+                      : result.excerpt;
                   return (
                     <article className="knowledge-card evidence-card" key={result.chunkId}>
                       <div className="knowledge-card-topline">
@@ -156,7 +250,7 @@ export function DrugReference({ runtimeStatus }: { runtimeStatus: RuntimeStatusD
                       {result.headingPath.length > 0 && (
                         <p className="knowledge-path">{result.headingPath.join(" / ")}</p>
                       )}
-                      <p className="evidence-excerpt">{result.excerpt}</p>
+                      <p className="evidence-excerpt">{preview}</p>
                       <div className="knowledge-meta-list">
                         {meta.length > 0 && <span>{meta.join(" · ")}</span>}
                         {result.retrievedDate && (
@@ -164,6 +258,13 @@ export function DrugReference({ runtimeStatus }: { runtimeStatus: RuntimeStatusD
                         )}
                         <span>{t.drugReference.scoreLabel(result.score)}</span>
                       </div>
+                      <button
+                        type="button"
+                        className="btn btn-secondary evidence-card-open"
+                        onClick={() => setSelected(result)}
+                      >
+                        {t.drugReference.viewFullEvidence}
+                      </button>
                     </article>
                   );
                 })}

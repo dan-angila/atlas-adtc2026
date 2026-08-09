@@ -202,6 +202,13 @@ const pt: Translations = {
     semanticBadge: "Semântico",
     retrievedOn: (date) => `Obtido em ${date}`,
     scoreLabel: (score) => `Pontuação ${score.toFixed(3)}`,
+    viewFullEvidence: "Ver evidência completa",
+    backToResults: "Voltar aos resultados",
+    fullEvidenceHeading: "Trecho de evidência completo",
+    sourceHeading: "Fonte",
+    otherMatchesHeading: "Outras correspondências neste documento",
+    scopeNote:
+      "O Atlas mostra trechos recuperados dos seus documentos carregados, não um banco de dados estruturado de medicamentos. Ferramentas de dosagem, tabelas de interação e códigos de classificação só aparecem se estiverem presentes no texto recuperado.",
   },
 
   languagesScreen: {
@@ -275,6 +282,18 @@ const pt: Translations = {
     highContrast: "Alto contraste",
     reduceMotion: "Reduzir movimento",
     alwaysShowFocus: "Mostrar sempre o anel de foco",
+    sectionReadability: "Legibilidade",
+    sectionAssistiveTools: "Ferramentas de assistência",
+    sectionDisplay: "Exibição",
+    readableSpacing: "Espaçamento legível",
+    highlightLinks: "Destacar links",
+    bigCursor: "Cursor grande",
+    readingMask: "Guia de leitura",
+    readPage: "Ler página em voz alta",
+    stopReading: "Parar leitura",
+    invertColors: "Inverter cores",
+    grayscale: "Escala de cinza",
+    skipToContent: "Pular para o conteúdo principal",
     resetDefaults: "Repor predefinições",
   },
 };

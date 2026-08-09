@@ -9,7 +9,7 @@ import {
   SendIcon,
   ShieldIcon,
 } from "../components/icons";
-import { Badge, confidenceTone } from "../components/Badge";
+import { Badge, confidenceTone, validationTone } from "../components/Badge";
 import { atlas } from "../lib/tauri";
 import { useTranslation } from "../i18n";
 import type { Translations } from "../i18n/types";
@@ -346,10 +346,21 @@ export function AskAtlas({ runtimeStatus }: { runtimeStatus: RuntimeStatusDto | 
                 languages.map((language) => (
                   <option key={language.code} value={language.code}>
                     {language.englishName}
+                    {language.code !== "en"
+                      ? ` — ${t.languagesScreen.statusLabels[language.validationStatus]}`
+                      : ""}
                   </option>
                 ))
               )}
             </select>
+            {selectedLanguage && selectedLanguage.code !== "en" && (
+              <span className="language-picker-note">
+                <Badge tone={validationTone(selectedLanguage.validationStatus)}>
+                  {t.languagesScreen.statusLabels[selectedLanguage.validationStatus]}
+                </Badge>
+                {selectedLanguage.validationNote}
+              </span>
+            )}
           </label>
         </div>
       </section>

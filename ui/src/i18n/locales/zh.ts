@@ -174,6 +174,13 @@ const zh: Translations = {
     semanticBadge: "语义匹配",
     retrievedOn: (date) => `获取于 ${date}`,
     scoreLabel: (score) => `得分 ${score.toFixed(3)}`,
+    viewFullEvidence: "查看完整证据",
+    backToResults: "返回结果",
+    fullEvidenceHeading: "完整证据段落",
+    sourceHeading: "来源",
+    otherMatchesHeading: "此文档中的其他匹配项",
+    scopeNote:
+      "Atlas 显示的是从您加载的文档中检索到的段落,而非结构化的药物数据库。剂量工具、相互作用表和分类代码仅在检索文本中确实包含时才会显示。",
   },
 
   languagesScreen: {
@@ -247,6 +254,18 @@ const zh: Translations = {
     highContrast: "高对比度",
     reduceMotion: "减少动画效果",
     alwaysShowFocus: "始终显示焦点框",
+    sectionReadability: "可读性",
+    sectionAssistiveTools: "辅助工具",
+    sectionDisplay: "显示",
+    readableSpacing: "易读间距",
+    highlightLinks: "突出显示链接",
+    bigCursor: "大光标",
+    readingMask: "阅读引导线",
+    readPage: "朗读页面",
+    stopReading: "停止朗读",
+    invertColors: "反转颜色",
+    grayscale: "灰度",
+    skipToContent: "跳转到主要内容",
     resetDefaults: "恢复默认设置",
   },
 };

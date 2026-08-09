@@ -196,6 +196,13 @@ const luo: Translations = {
     semanticBadge: "Mag Tiend Wach",
     retrievedOn: (date) => `Oyudi ${date}`,
     scoreLabel: (score) => `Kwan ${score.toFixed(3)}`,
+    viewFullEvidence: "Ne ranyisi mopongʼ",
+    backToResults: "Dogi e results",
+    fullEvidenceHeading: "Bath ranyisi mopongʼ",
+    sourceHeading: "Sula",
+    otherMatchesHeading: "Machalre mamoko e gasetni",
+    scopeNote:
+      "Atlas nyiso bede mowuok e gasede miseketo, ok kar keno mar yedhe mochan maber. Gige pimo dosi, boche mag riwruok, kod nembe mag pogo ok nenre ka ok gin e ndiko moyudi.",
   },
 
   languagesScreen: {
@@ -269,6 +276,18 @@ const luo: Translations = {
     highContrast: "Pogruok Maduong'",
     reduceMotion: "Dwok Chal Wuok",
     alwaysShowFocus: "Nyis tond mar rango kinde duto",
+    sectionReadability: "Somo mayot",
+    sectionAssistiveTools: "Gik mikonyogo",
+    sectionDisplay: "Nyisruok",
+    readableSpacing: "Thuolo mar somo mayot",
+    highlightLinks: "Nyis winjruok",
+    bigCursor: "Ranyisi maduongʼ",
+    readingMask: "Jatak somo",
+    readPage: "Som ite gi dwol",
+    stopReading: "Kwe somo",
+    invertColors: "Lokri kido",
+    grayscale: "Kido mar buru",
+    skipToContent: "Chikri e wach maduongʼ",
     resetDefaults: "Dwok Chenro mokwongo",
   },
 };

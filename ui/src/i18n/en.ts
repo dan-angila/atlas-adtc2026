@@ -210,6 +210,13 @@ const en = {
     semanticBadge: "Semantic",
     retrievedOn: (date: string) => `Retrieved ${date}`,
     scoreLabel: (score: number) => `Score ${score.toFixed(3)}`,
+    viewFullEvidence: "View full evidence",
+    backToResults: "Back to results",
+    fullEvidenceHeading: "Full evidence passage",
+    sourceHeading: "Source",
+    otherMatchesHeading: "Other matches in this document",
+    scopeNote:
+      "Atlas shows retrieved passages from your loaded documents, not a structured drug database. Dosing tools, interaction tables, and classification codes are not shown unless present in the retrieved text itself.",
   },
 
   languagesScreen: {
@@ -284,6 +291,18 @@ const en = {
     highContrast: "High contrast",
     reduceMotion: "Reduce motion",
     alwaysShowFocus: "Always show focus ring",
+    sectionReadability: "Readability",
+    sectionAssistiveTools: "Assistive tools",
+    sectionDisplay: "Display",
+    readableSpacing: "Readable spacing",
+    highlightLinks: "Highlight links",
+    bigCursor: "Large cursor",
+    readingMask: "Reading guide",
+    readPage: "Read page aloud",
+    stopReading: "Stop reading",
+    invertColors: "Invert colors",
+    grayscale: "Grayscale",
+    skipToContent: "Skip to main content",
     resetDefaults: "Reset to defaults",
   },
 };

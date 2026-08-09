@@ -203,6 +203,13 @@ const so: Translations = {
     semanticBadge: "Macnaha",
     retrievedOn: (date) => `Waxaa la helay ${date}`,
     scoreLabel: (score) => `Dhibcaha ${score.toFixed(3)}`,
+    viewFullEvidence: "Fiiri caddaynta buuxda",
+    backToResults: "Ku noqo natiijooyinka",
+    fullEvidenceHeading: "Qeybta caddaynta oo buuxda",
+    sourceHeading: "Isha",
+    otherMatchesHeading: "Isku-dhigmo kale oo ku jira dukumeentigan",
+    scopeNote:
+      "Atlas wuxuu tusaa qaybo laga soo saaray dukumeentiyada aad soo rartay, ma aha xog-hayn qaabaysan oo dawooyin ah. Qalabka qiyaasta dawada, jadwalada isdhexgalka, iyo koodhadhka kala soocidda lama tusi doono haddii aanay ku jirin qoraalka la soo saaray.",
   },
 
   languagesScreen: {
@@ -276,6 +283,18 @@ const so: Translations = {
     highContrast: "Kala Duwanaan Sare",
     reduceMotion: "Yaree Dhaqdhaqaaqa",
     alwaysShowFocus: "Had iyo jeer muuji giraanta diiradda",
+    sectionReadability: "Akhris fudud",
+    sectionAssistiveTools: "Qalabka caawimada",
+    sectionDisplay: "Muuqaalka",
+    readableSpacing: "Meel bannaan oo akhris fudud",
+    highlightLinks: "Muuji xiriirinta",
+    bigCursor: "Farta weyn",
+    readingMask: "Hage akhrinta",
+    readPage: "Akhri bogga cod dheer",
+    stopReading: "Jooji akhrinta",
+    invertColors: "Rogrog midabada",
+    grayscale: "Midab-guduud",
+    skipToContent: "U gudub qoraalka ugu muhiimsan",
     resetDefaults: "Ku Celi Dejinta Asalka ah",
   },
 };

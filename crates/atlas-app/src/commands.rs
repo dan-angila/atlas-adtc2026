@@ -478,7 +478,12 @@ pub fn search_knowledge(
                 document_title: document.as_ref().map(|doc| doc.title.clone()),
                 format: document.as_ref().map(|doc| format!("{:?}", doc.format)),
                 heading_path: result.chunk.heading_path.clone(),
-                excerpt: truncate_excerpt(&result.chunk.text, 280),
+                // Knowledge Search backs Drug Reference's detail view, which
+                // needs the (near-)complete chunk text, not a chat-citation-length
+                // snippet — chunks target `PLACEHOLDER_TARGET_CHUNK_BYTES` (2000
+                // bytes) plus overlap, so 2400 chars covers a full chunk in
+                // practice while still bounding worst-case payload size.
+                excerpt: truncate_excerpt(&result.chunk.text, 2400),
                 organization: document.as_ref().and_then(|doc| doc.organization.clone()),
                 jurisdiction: document.as_ref().and_then(|doc| doc.jurisdiction.clone()),
                 license: document.as_ref().and_then(|doc| doc.license.clone()),

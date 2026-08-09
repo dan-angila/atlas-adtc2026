@@ -196,6 +196,13 @@ const ig: Translations = {
     semanticBadge: "Nghọta",
     retrievedOn: (date) => `Achọtara ${date}`,
     scoreLabel: (score) => `Akara ${score.toFixed(3)}`,
+    viewFullEvidence: "Lelee ihe akaebe zuru oke",
+    backToResults: "Laghachi na nsonaazụ",
+    fullEvidenceHeading: "Ngalaba ihe akaebe zuru oke",
+    sourceHeading: "Isi mmalite",
+    otherMatchesHeading: "Ndị ọzọ dabara nʼime akwụkwọ a",
+    scopeNote:
+      "Atlas na-egosi ngalaba e nwetara site na akwụkwọ ị bulitere, ọ bụghị nchekwa data ọgwụ e doziri nke ọma. Ngwaọrụ ọtụtụ ọgwụ, tebụl mmekọrịta, na koodu nhazi anaghị egosi belụsọ ma ọ bụrụ na ha dị n'ihe e nwetara.",
   },
 
   languagesScreen: {
@@ -269,6 +276,18 @@ const ig: Translations = {
     highContrast: "Ọdịiche Dị Elu",
     reduceMotion: "Belata Mmegharị",
     alwaysShowFocus: "Na-egosi mgbanaka nlebara anya mgbe niile",
+    sectionReadability: "Ọgụgụ dị mfe",
+    sectionAssistiveTools: "Ngwá ọrụ enyemaka",
+    sectionDisplay: "Ngosipụta",
+    readableSpacing: "Oghere ọgụgụ dị mfe",
+    highlightLinks: "Mee ka njikọ pụta ìhè",
+    bigCursor: "Nnukwu ihe ntụzi aka",
+    readingMask: "Ntụziaka ọgụgụ",
+    readPage: "Gụọ peeji n'olu",
+    stopReading: "Kwụsị ịgụ",
+    invertColors: "Gbanwee agba",
+    grayscale: "Agba ntụ",
+    skipToContent: "Wụga na isi ihe odide",
     resetDefaults: "Weghachi Ntọala Mbụ",
   },
 };

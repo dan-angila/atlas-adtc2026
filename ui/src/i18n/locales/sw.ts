@@ -200,6 +200,13 @@ const sw: Translations = {
     semanticBadge: "Kimaana",
     retrievedOn: (date) => `Imepatikana ${date}`,
     scoreLabel: (score) => `Alama ${score.toFixed(3)}`,
+    viewFullEvidence: "Tazama ushahidi kamili",
+    backToResults: "Rudi kwenye matokeo",
+    fullEvidenceHeading: "Kifungu kamili cha ushahidi",
+    sourceHeading: "Chanzo",
+    otherMatchesHeading: "Mechi nyingine katika hati hii",
+    scopeNote:
+      "Atlas inaonyesha vifungu vilivyopatikana kutoka hati ulizopakia, si hifadhidata iliyopangwa ya dawa. Zana za kipimo cha dozi, majedwali ya mwingiliano, na misimbo ya uainishaji havionyeshwi isipokuwa vimo kwenye maandishi yaliyopatikana.",
   },
 
   languagesScreen: {
@@ -273,6 +280,18 @@ const sw: Translations = {
     highContrast: "Mkabala wa juu",
     reduceMotion: "Punguza mwendo",
     alwaysShowFocus: "Onyesha pete ya lengo kila wakati",
+    sectionReadability: "Usomaji rahisi",
+    sectionAssistiveTools: "Zana za usaidizi",
+    sectionDisplay: "Onyesho",
+    readableSpacing: "Nafasi rahisi kusoma",
+    highlightLinks: "Angazia viungo",
+    bigCursor: "Kionyeshi kikubwa",
+    readingMask: "Mwongozo wa kusoma",
+    readPage: "Soma ukurasa kwa sauti",
+    stopReading: "Simamisha usomaji",
+    invertColors: "Geuza rangi",
+    grayscale: "Rangi ya kijivu",
+    skipToContent: "Ruka hadi maudhui makuu",
     resetDefaults: "Rejesha chaguo-msingi",
   },
 };

@@ -204,6 +204,13 @@ const rw: Translations = {
     semanticBadge: "Ibisobanuro",
     retrievedOn: (date) => `Byabonetse ${date}`,
     scoreLabel: (score) => `Amanota ${score.toFixed(3)}`,
+    viewFullEvidence: "Reba ibimenyetso byuzuye",
+    backToResults: "Subira ku bisubizo",
+    fullEvidenceHeading: "Igice cy'ibimenyetso cyuzuye",
+    sourceHeading: "Inkomoko",
+    otherMatchesHeading: "Ibindi bihuye biri muri iyi nyandiko",
+    scopeNote:
+      "Atlas igaragaza ibice byavuye mu nyandiko wafashe, ntabwo ari ububiko bw'imiti bugenwe. Ibikoresho by'ingano y'imiti, imbonerahamwe z'ihuzagurika, n'amakode yo gushyira mu byiciro ntibigaragara keretse biri mu nyandiko yavuye mu bushakashatsi.",
   },
 
   languagesScreen: {
@@ -277,6 +284,18 @@ const rw: Translations = {
     highContrast: "Itandukaniro Rikomeye",
     reduceMotion: "Kugabanya Imigendekere",
     alwaysShowFocus: "Erekana buri gihe impeta y'aho witerekeje",
+    sectionReadability: "Gusoma byoroshye",
+    sectionAssistiveTools: "Ibikoresho by'ubufasha",
+    sectionDisplay: "Kugaragaza",
+    readableSpacing: "Icyuho cyo gusoma byoroshye",
+    highlightLinks: "Garagaza amahuza",
+    bigCursor: "Kanyoni kanini",
+    readingMask: "Umuyoboro wo gusoma",
+    readPage: "Soma urupapuro mu ijwi",
+    stopReading: "Hagarika gusoma",
+    invertColors: "Hindura amabara",
+    grayscale: "Ibara ry'ivu",
+    skipToContent: "Simbuka ujye ku bikubiyemo",
     resetDefaults: "Garura Igenamiterere Risanzwe",
   },
 };

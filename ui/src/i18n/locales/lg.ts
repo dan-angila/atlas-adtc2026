@@ -204,6 +204,13 @@ const lg: Translations = {
     semanticBadge: "Ky'amakulu",
     retrievedOn: (date) => `Kizuuliddwa ${date}`,
     scoreLabel: (score) => `Amasomo ${score.toFixed(3)}`,
+    viewFullEvidence: "Laba obukakafu obujjuvu",
+    backToResults: "Ddayo ku bibalo",
+    fullEvidenceHeading: "Ekitundu ky'obukakafu obujjuvu",
+    sourceHeading: "Ensibuko",
+    otherMatchesHeading: "Ebirala ebifaanagana mu kiwandiiko kino",
+    scopeNote:
+      "Atlas alaga ebitundu ebiggibwa mu biwandiiko byo be wateeka, si terekero ly'eddagala erifubiddwa. Ebyuma eby'okupima ekigero, emmeeza ez'enkolagana, n'amabaluwa ag'okwawula tebirabika okugyako nga biri mu kiwandiiko ekifunibbwa.",
   },
 
   languagesScreen: {
@@ -277,6 +284,18 @@ const lg: Translations = {
     highContrast: "Enjawulo Ennene",
     reduceMotion: "Kendeeza Okutambula",
     alwaysShowFocus: "Lagira empeta y'okwesigika buli kiseera",
+    sectionReadability: "Okusoma okwangu",
+    sectionAssistiveTools: "Ebikozesebwa eby'obuyambi",
+    sectionDisplay: "Okulaga",
+    readableSpacing: "Ekifo eky'okusoma okwangu",
+    highlightLinks: "Laga enkolagana",
+    bigCursor: "Akalulu akanene",
+    readingMask: "Omulanga gw'okusoma",
+    readPage: "Soma olupapula mu ddoboozi",
+    stopReading: "Yimiriza okusoma",
+    invertColors: "Kyusa langi",
+    grayscale: "Langi ey'evvu",
+    skipToContent: "Buuka odde ku bikulu ebikwata ku mutwe",
     resetDefaults: "Zzaayo Entekateeka Ez'obulijjo",
   },
 };

@@ -181,6 +181,13 @@ const ar: Translations = {
     semanticBadge: "دلالي",
     retrievedOn: (date) => `استُرجع بتاريخ ${date}`,
     scoreLabel: (score) => `النتيجة ${score.toFixed(3)}`,
+    viewFullEvidence: "عرض الدليل الكامل",
+    backToResults: "العودة إلى النتائج",
+    fullEvidenceHeading: "مقطع الدليل الكامل",
+    sourceHeading: "المصدر",
+    otherMatchesHeading: "تطابقات أخرى في هذا المستند",
+    scopeNote:
+      "يعرض أطلس المقاطع المسترجعة من المستندات المحملة لديك، وليس قاعدة بيانات أدوية منظمة. لا تُعرض أدوات الجرعات وجداول التفاعلات ورموز التصنيف إلا إذا وردت في النص المسترجع نفسه.",
   },
 
   languagesScreen: {
@@ -254,6 +261,18 @@ const ar: Translations = {
     highContrast: "تباين عالٍ",
     reduceMotion: "تقليل الحركة",
     alwaysShowFocus: "إظهار مؤشر التركيز دائمًا",
+    sectionReadability: "سهولة القراءة",
+    sectionAssistiveTools: "أدوات المساعدة",
+    sectionDisplay: "العرض",
+    readableSpacing: "تباعد سهل القراءة",
+    highlightLinks: "إبراز الروابط",
+    bigCursor: "مؤشر كبير",
+    readingMask: "دليل القراءة",
+    readPage: "قراءة الصفحة بصوت عالٍ",
+    stopReading: "إيقاف القراءة",
+    invertColors: "عكس الألوان",
+    grayscale: "تدرج الرمادي",
+    skipToContent: "الانتقال إلى المحتوى الرئيسي",
     resetDefaults: "إعادة التعيين إلى الافتراضي",
   },
 };

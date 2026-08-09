@@ -49,6 +49,15 @@ registered" anywhere in this codebase as "24 languages work"; see that
 report before citing multilingual capability in any submission
 material.
 
+[`multilingual-chat-template-diagnostic-2026-08-10.md`](multilingual-chat-template-diagnostic-2026-08-10.md)
+follows up on that report with a real, measured test of a specific
+root-cause hypothesis (raw-completion prompting vs. chat-template
+formatting) for *why* non-English generation is weak. It rules out a
+literal "conflicting engine" and finds a real, previously-undocumented
+architectural gap instead — but does not change the shipped pipeline or
+promote any language's status; see that entry's own "Recommended next
+step" before acting on it.
+
 Retrieval-quality and RAG-answer-accuracy evaluation (the rest of this
 directory's stated scope) do not exist yet. A defined evaluation
 approach is a named exit criterion for Phase 3 (Knowledge Retrieval) and

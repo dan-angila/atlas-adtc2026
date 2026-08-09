@@ -111,14 +111,25 @@ weakly-hedged answer or worse; both are now hard refusals, see
 ## Step 4 — Drug Reference (evidence search, not a pharmacy system)
 
 Navigate to **Drug Reference**, click the **"malaria treatment drugs"**
-chip.
+chip, then click **"View full evidence"** on one of the resulting cards.
 
 **What the evaluator should notice:** this is retrieval, not a curated
 drug database — it runs the same hybrid search as Ask Atlas and returns
 the real matching evidence chunk(s), with lexical/semantic match badges
-showing which retrieval leg(s) found it. There is no dosing calculator,
-no inventory, no prescribing flow — the screen's own subtitle says so
+showing which retrieval leg(s) found it. The detail view (reached via
+"View full evidence") shows the complete retrieved passage, real source
+metadata, and any other matching chunks from the same document — plus
+an explicit note that Atlas has no structured per-drug database, so
+fields like dosing tables or ATC codes only appear if the retrieved
+document text itself contains them. There is no dosing calculator, no
+inventory, no prescribing flow — the screen's own subtitle says so
 explicitly.
+
+> **Verification status:** the detail-view step above was added in this
+> pass and has been build/lint/test-verified but not yet exercised in a
+> live running Tauri app — see the Phase 9 end-to-end verification pass
+> for that confirmation. Everything else in this step reflects the
+> real, previously-observed run described below.
 
 ## Step 5 — Medical Knowledge and Languages (provenance and honesty)
 

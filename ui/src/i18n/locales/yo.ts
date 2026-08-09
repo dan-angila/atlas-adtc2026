@@ -186,6 +186,13 @@ const yo: Translations = {
     semanticBadge: "Ìtumọ̀",
     retrievedOn: (date) => `A rí ní ${date}`,
     scoreLabel: (score) => `Àmì ${score.toFixed(3)}`,
+    viewFullEvidence: "Wo ẹ̀rí kíkún",
+    backToResults: "Padà sí àwọn àbájáde",
+    fullEvidenceHeading: "Apá ẹ̀rí kíkún",
+    sourceHeading: "Orísun",
+    otherMatchesHeading: "Àwọn ìbámu mìíràn nínú ìwé yìí",
+    scopeNote:
+      "Atlas ń fi àwọn apá tí a rí nínú àwọn ìwé tí o gbé wọlé hàn, kì í ṣe ibi ìpamọ́ data oògùn tí a to sí ètò. Àwọn irinṣẹ́ ìdíwọ̀n oògùn, àwọn tábìlì ìbáṣepọ̀, àti àwọn kóòdù ìpínsọ̀ kò ní farahàn àyàfi tí wọ́n bá wà nínú ọ̀rọ̀ tí a rí.",
   },
 
   languagesScreen: {
@@ -259,6 +266,18 @@ const yo: Translations = {
     highContrast: "Ìyàtọ̀ Gíga",
     reduceMotion: "Dín Ìṣíra Kù",
     alwaysShowFocus: "Máa Fi Òrùka Ìdojúkọ Hàn Nígbà Gbogbo",
+    sectionReadability: "Kíkàwé rírọrùn",
+    sectionAssistiveTools: "Àwọn irinṣẹ́ ìrànlọ́wọ́",
+    sectionDisplay: "Ìfihàn",
+    readableSpacing: "Àyè kíkàwé rírọrùn",
+    highlightLinks: "Sàmì àwọn ọ̀nà asopọ̀",
+    bigCursor: "Ọ̀nà ìtọ́ka ńlá",
+    readingMask: "Ìtọ́sọ́nà kíkàwé",
+    readPage: "Ka ojú-ìwé sókè",
+    stopReading: "Dá kíkà dúró",
+    invertColors: "Yí àwọn àwọ̀ padà",
+    grayscale: "Àwọ̀ eérú",
+    skipToContent: "Fò lọ sí àkóónú pàtàkì",
     resetDefaults: "Padà Sí Ìpéwọ̀n",
   },
 };

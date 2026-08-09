@@ -204,6 +204,27 @@ textarea {
 
 /* ---------- App shell ---------- */
 
+.skip-to-content {
+  position: fixed;
+  top: -100px;
+  left: var(--space-4);
+  z-index: 1000;
+  background: var(--accent-600);
+  color: #fff;
+  padding: 10px 16px;
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  text-decoration: none;
+  transition: top 120ms ease;
+}
+
+.skip-to-content:focus-visible {
+  top: var(--space-4);
+  outline: 3px solid var(--accent-700);
+  outline-offset: 2px;
+}
+
 .app-shell {
   display: grid;
   grid-template-columns: var(--sidebar-width) 1fr;
@@ -1464,6 +1485,14 @@ textarea {
   padding: 10px 12px;
 }
 
+.language-picker-note {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
 .ask-composer-panel .suggestion-card {
   max-width: 280px;
 }
@@ -1628,6 +1657,70 @@ textarea {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+.evidence-card-open {
+  align-self: flex-start;
+  margin-top: auto;
+}
+
+.evidence-detail-back {
+  align-self: flex-start;
+}
+
+.evidence-detail-section h4 {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+.evidence-full-text {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  line-height: 1.7;
+  white-space: pre-wrap;
+}
+
+.evidence-other-matches {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.evidence-other-matches button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-sunken);
+  color: var(--text-primary);
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.evidence-other-matches button:hover {
+  border-color: var(--accent-500);
+}
+
+.evidence-other-matches svg {
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  color: var(--text-muted);
+}
+
+.evidence-scope-note {
+  border-top: 1px solid var(--border-subtle);
+  padding-top: var(--space-3);
 }
 
 @media (max-width: 1200px) {
@@ -1818,6 +1911,62 @@ textarea {
   outline-offset: 2px !important;
 }
 
+/* Wider letter/word spacing and line height — a real readability aid;
+ * not labeled "dyslexia font" anywhere since no such typeface ships
+ * with this project. */
+[data-a11y-spacing="wide"] body {
+  letter-spacing: 0.03em;
+  word-spacing: 0.15em;
+  line-height: 1.8;
+}
+
+[data-a11y-links="highlight"] a {
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 2px;
+  font-weight: 600;
+}
+
+/* A larger, higher-contrast pointer via a data-URI cursor — no bundled
+ * cursor asset required. Teal fill matches the accent color so it reads
+ * as an intentional accessibility state, not a broken cursor. */
+[data-a11y-cursor="large"],
+[data-a11y-cursor="large"] a,
+[data-a11y-cursor="large"] button {
+  cursor:
+    url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24"><path d="M4 2l14 12-6 1 3 6-3 1.5-3-6-4 3z" fill="%2314b8a6" stroke="%23063e38" stroke-width="1"/></svg>')
+      4 2,
+    auto;
+}
+
+[data-a11y-invert="on"] {
+  filter: invert(1) hue-rotate(180deg);
+}
+
+[data-a11y-grayscale="on"] {
+  filter: grayscale(1);
+}
+
+[data-a11y-invert="on"][data-a11y-grayscale="on"] {
+  filter: invert(1) hue-rotate(180deg) grayscale(1);
+}
+
+/* Reading mask — AccessibilityWidget sets --a11y-mask-y on pointer move
+ * while active. A fixed-position band stays fully lit; everything above
+ * and below it dims via two big box-shadows on a transparent strip. */
+[data-a11y-reading-mask="on"] body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  pointer-events: none;
+  top: calc(var(--a11y-mask-y, 50vh) - 60px);
+  height: 120px;
+  box-shadow:
+    0 -2000px 0 2000px rgba(0, 0, 0, 0.55),
+    0 2000px 0 2000px rgba(0, 0, 0, 0.55);
+}
+
 /* ---------- Accessibility widget ---------- */
 
 .a11y-trigger {
@@ -1884,6 +2033,29 @@ textarea {
 
 .a11y-row:first-of-type {
   border-top: none;
+}
+
+.a11y-section-title {
+  margin: var(--space-4) 0 0;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border-subtle);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.a11y-section-title:first-of-type {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
+}
+
+.a11y-readpage {
+  width: 100%;
+  justify-content: center;
+  margin-top: var(--space-2);
 }
 
 .a11y-row-language {
