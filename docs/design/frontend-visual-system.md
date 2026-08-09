@@ -220,3 +220,68 @@ turns) using a client-side-only mocked Tauri bridge for visual QA
 purposes — this technique never touches the shipped codebase and
 introduces no fabricated-data code path in the product itself; the real
 desktop app still only ever renders real backend data.
+
+## Interface-language wiring completed (2026-08-09)
+
+The prior pass built a complete i18n dictionary (`ui/src/i18n/en.ts`, 280
+lines covering every screen) and a working `I18nProvider`/`useTranslation`
+context, but never actually mounted the provider or wired any component
+to it — every screen still rendered hardcoded English regardless of the
+selected language, and the loader in `ui/src/i18n/index.tsx` referenced
+13 locale files (every African language: `sw`, `so`, `rw`, `rn`, `am`,
+`ha`, `yo`, `ig`, `zu`, `xh`, `lg`, `luo`, `sn`) that did not exist on
+disk — selecting any of them would have thrown at runtime via a failed
+dynamic `import()`. This pass:
+
+- Mounted `I18nProvider` in `main.tsx`.
+- Added `LanguageSelector` (`ui/src/components/LanguageSelector.tsx`), a
+  sidebar-resident UI-chrome language picker — distinct from Ask Atlas's
+  existing per-question answer-language selector — surfacing the
+  "machine-translated, not native-reviewed" note this project's own
+  `MACHINE_TRANSLATED_CODES` set already anticipated but never displayed.
+- Rewired `AppShell` and all five screens (`AskAtlas`, `MedicalKnowledge`,
+  `DrugReference`, `Languages`, `RuntimeBenchmark`) plus
+  `AccessibilityWidget` and `RuntimeStatusPill` to consume
+  `useTranslation()` instead of literal strings, against the key
+  structure the dictionary's original author had already anticipated
+  almost exactly — only one key (`common.untitledSource`) was missing
+  and has been added, consolidating a near-duplicate that had drifted
+  into `drugReference.untitledSource` only.
+- Wrote the 13 missing African-language locale files in full, matching
+  the `Translations` type exactly (a missing or extra key is a
+  TypeScript compile error by this project's own design, not a silent
+  fallback). Translation confidence varies by language resourcing —
+  Swahili, Hausa, Yoruba, Igbo, Zulu, Xhosa, Amharic, and Shona are
+  reasonably well-resourced; Kinyarwanda, Kirundi, Luganda, Somali, and
+  especially Dholuo are lower-confidence best-effort translations. Every
+  non-English locale, old and new alike, is already flagged in the UI as
+  machine-translated and unreviewed by a native speaker — this pass did
+  not change that honesty posture, it just made the flagged translations
+  actually reachable.
+- Fixed a genuine latent bug surfaced by turning on `noUnusedParameters`
+  strict-mode enforcement during this wiring: `runtimeBenchmark.physicalLogicalCores`
+  never interpolated its `physical` parameter in English or any of the
+  10 pre-existing locales — the physical-core count was silently dropped
+  from the "N physical / M logical" phrase everywhere. Fixed in all 24
+  locale files plus the `RuntimeBenchmark` screen's rendering, which
+  previously relied on a fragile bare-number-before-translated-span
+  composition.
+- Added `[dir="rtl"]` CSS overrides for the app-shell grid, sidebar
+  border, and nav active-item accent — the only hand-authored physical
+  (not logical) properties in the shell. Arabic is the only
+  currently-registered RTL language; verified via Playwright that the
+  sidebar mirrors to the right, text aligns right, and the pipeline
+  diagram's reading order reverses correctly.
+
+Verified: `tsc -b`, `eslint .`, `prettier --check .`, and `vite build`
+all pass clean (`vite build` code-splits each of the 24 locales into its
+own lazy-loaded chunk, confirming every locale file is syntactically
+valid and type-correct). Playwright-verified against the live dev server
+at 1280×800, 1366×768, and 1920×1080, switching through English, Arabic
+(RTL), Amharic (Ethiopic script), and Kirundi (long compound words) —
+no clipping, overflow, or mixed-language leakage found on any of the
+five screens' runtime-unavailable/empty states or the accessibility
+panel. The answered/refused Ask Atlas turn states were not re-verified
+in this pass (that requires the mocked-bridge technique from the prior
+visual-polish pass, not exercised here); the language-switching
+mechanism itself is verified end-to-end.

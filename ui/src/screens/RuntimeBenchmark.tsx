@@ -3,13 +3,17 @@ import { useEffect, useState } from "react";
 import { AlertIcon, GaugeIcon } from "../components/icons";
 import { Badge } from "../components/Badge";
 import { atlas } from "../lib/tauri";
+import { useTranslation } from "../i18n";
 import type { BenchmarkReportDto, RuntimeDetailsDto, RuntimeStatusDto } from "../lib/tauri";
+
+const BENCHMARK_METHODOLOGY_PATH = "docs/benchmarks/2026-08-08-adtc-benchmark-suite.md";
 
 function formatBytes(bytes: number): string {
   return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GiB`;
 }
 
 export function RuntimeBenchmark({ runtimeStatus }: { runtimeStatus: RuntimeStatusDto | null }) {
+  const t = useTranslation();
   const [report, setReport] = useState<BenchmarkReportDto | null>(null);
   const [details, setDetails] = useState<RuntimeDetailsDto | null>(null);
   const [running, setRunning] = useState(false);
@@ -48,105 +52,103 @@ export function RuntimeBenchmark({ runtimeStatus }: { runtimeStatus: RuntimeStat
     return (
       <div className="empty-state">
         <GaugeIcon style={{ fontSize: 28 }} />
-        <h3>Waiting for the Runtime</h3>
-        <p>{runtimeStatus?.reason ?? "The Atlas Runtime is not connected."}</p>
+        <h3>{t.runtimeBenchmark.waitingTitle}</h3>
+        <p>{runtimeStatus?.reason ?? t.runtimeBenchmark.waitingDisconnected}</p>
       </div>
     );
   }
+
+  const workerLoaded = Boolean(details?.generationModelLoaded && details?.embeddingModelLoaded);
+  const benchmarkDescription = t.runtimeBenchmark.benchmarkDescription(BENCHMARK_METHODOLOGY_PATH);
+  const [descriptionBefore, descriptionAfter] = benchmarkDescription.split(
+    BENCHMARK_METHODOLOGY_PATH,
+  );
 
   return (
     <div className="product-screen">
       <section className="hero-panel compact">
         <div>
-          <span className="eyebrow">Runtime &amp; Benchmark</span>
-          <h2>Real local runtime identity</h2>
-          <p>
-            This view exposes what Atlas actually loaded and measured in the desktop shell. Missing
-            values are called out as not measured rather than padded with placeholders.
-          </p>
+          <span className="eyebrow">{t.screenTitles.runtime.title}</span>
+          <h2>{t.runtimeBenchmark.heroTitle}</h2>
+          <p>{t.runtimeBenchmark.heroSubtitle}</p>
         </div>
       </section>
 
       <section className="atlas-panel">
-        <div className="section-heading">Runtime status</div>
+        <div className="section-heading">{t.runtimeBenchmark.sectionRuntimeStatus}</div>
         <div className="metric-grid" style={{ marginBottom: "var(--space-8)" }}>
           <div className="metric-card">
-            <div className="metric-label">Documents loaded</div>
+            <div className="metric-label">{t.runtimeBenchmark.labelDocumentsLoaded}</div>
             <div className="metric-value">{runtimeStatus.documentCount ?? "—"}</div>
           </div>
           <div className="metric-card">
-            <div className="metric-label">Languages registered</div>
+            <div className="metric-label">{t.runtimeBenchmark.labelLanguagesRegistered}</div>
             <div className="metric-value">{runtimeStatus.languageCount ?? "—"}</div>
           </div>
           <div className="metric-card">
-            <div className="metric-label">Generation model</div>
+            <div className="metric-label">{t.runtimeBenchmark.labelGenerationModel}</div>
             <div className="metric-value" style={{ fontSize: "var(--text-md)" }}>
-              {details?.generationModelName ?? "Not measured"}
+              {details?.generationModelName ?? t.common.notMeasured}
             </div>
           </div>
           <div className="metric-card">
-            <div className="metric-label">Embedding model</div>
+            <div className="metric-label">{t.runtimeBenchmark.labelEmbeddingModel}</div>
             <div className="metric-value" style={{ fontSize: "var(--text-md)" }}>
-              {details?.embeddingModelName ?? "Not measured"}
+              {details?.embeddingModelName ?? t.common.notMeasured}
             </div>
           </div>
           <div className="metric-card">
-            <div className="metric-label">Knowledge base</div>
+            <div className="metric-label">{t.runtimeBenchmark.labelKnowledgeBase}</div>
             <div className="metric-value" style={{ fontSize: "var(--text-md)" }}>
-              {details?.knowledgeBaseName ?? "Not measured"}
+              {details?.knowledgeBaseName ?? t.common.notMeasured}
             </div>
           </div>
           <div className="metric-card">
-            <div className="metric-label">Worker state</div>
+            <div className="metric-label">{t.runtimeBenchmark.labelWorkerState}</div>
             <div className="metric-value" style={{ fontSize: "var(--text-md)" }}>
               {details ? (
-                <Badge
-                  tone={
-                    details.generationModelLoaded && details.embeddingModelLoaded
-                      ? "success"
-                      : "warning"
-                  }
-                >
-                  {details.generationModelLoaded && details.embeddingModelLoaded
-                    ? "Generation + embedding loaded"
-                    : "Partially loaded"}
+                <Badge tone={workerLoaded ? "success" : "warning"}>
+                  {workerLoaded
+                    ? t.runtimeBenchmark.workerStateLoaded
+                    : t.runtimeBenchmark.workerStatePartial}
                 </Badge>
               ) : (
-                "Not measured"
+                t.common.notMeasured
               )}
             </div>
           </div>
           <div className="metric-card">
-            <div className="metric-label">Thread count</div>
-            <div className="metric-value">{details?.threadCount ?? "Not measured"}</div>
+            <div className="metric-label">{t.runtimeBenchmark.labelThreadCount}</div>
+            <div className="metric-value">{details?.threadCount ?? t.common.notMeasured}</div>
           </div>
           <div className="metric-card">
-            <div className="metric-label">Worker uptime</div>
+            <div className="metric-label">{t.runtimeBenchmark.labelWorkerUptime}</div>
             <div className="metric-value">
-              {details ? `${Math.round(details.workerUptimeMs / 1000)}s` : "Not measured"}
+              {details
+                ? t.runtimeBenchmark.workerUptimeSeconds(Math.round(details.workerUptimeMs / 1000))
+                : t.common.notMeasured}
             </div>
           </div>
           <div className="metric-card">
-            <div className="metric-label">Retrieval latency</div>
+            <div className="metric-label">{t.runtimeBenchmark.labelRetrievalLatency}</div>
             <div className="metric-value" style={{ fontSize: "var(--text-md)" }}>
-              Not measured
+              {t.common.notMeasured}
             </div>
           </div>
           <div className="metric-card">
-            <div className="metric-label">Process memory usage</div>
+            <div className="metric-label">{t.runtimeBenchmark.labelProcessMemory}</div>
             <div className="metric-value" style={{ fontSize: "var(--text-md)" }}>
-              Not measured
+              {t.common.notMeasured}
             </div>
           </div>
         </div>
 
-        <div className="section-heading">Benchmark</div>
+        <div className="section-heading">{t.runtimeBenchmark.sectionBenchmark}</div>
         <div className="card" style={{ marginBottom: "var(--space-6)" }}>
           <p className="card-subtitle" style={{ margin: "0 0 var(--space-4)" }}>
-            Runs a real generation request against the loaded model and reports real, measured
-            throughput — never a fabricated number. See{" "}
-            <code>docs/benchmarks/2026-08-08-adtc-benchmark-suite.md</code> for the full, dated
-            methodology this reuses.
+            {descriptionBefore}
+            <code>{BENCHMARK_METHODOLOGY_PATH}</code>
+            {descriptionAfter}
           </p>
           <button
             type="button"
@@ -156,10 +158,11 @@ export function RuntimeBenchmark({ runtimeStatus }: { runtimeStatus: RuntimeStat
           >
             {running ? (
               <>
-                <span className="spinner" aria-hidden="true" /> Running real benchmark…
+                <span className="spinner" aria-hidden="true" />{" "}
+                {t.runtimeBenchmark.runningBenchmarkButton}
               </>
             ) : (
-              "Run benchmark now"
+              t.runtimeBenchmark.runBenchmarkButton
             )}
           </button>
         </div>
@@ -173,10 +176,10 @@ export function RuntimeBenchmark({ runtimeStatus }: { runtimeStatus: RuntimeStat
 
         {report && (
           <>
-            <div className="section-heading">Hardware (real, detected at run time)</div>
+            <div className="section-heading">{t.runtimeBenchmark.sectionHardware}</div>
             <div className="metric-grid" style={{ marginBottom: "var(--space-8)" }}>
               <div className="metric-card">
-                <div className="metric-label">CPU</div>
+                <div className="metric-label">{t.runtimeBenchmark.labelCpu}</div>
                 <div
                   className="metric-value"
                   style={{ fontSize: "var(--text-sm)", fontFamily: "var(--font-sans)" }}
@@ -185,26 +188,26 @@ export function RuntimeBenchmark({ runtimeStatus }: { runtimeStatus: RuntimeStat
                 </div>
               </div>
               <div className="metric-card">
-                <div className="metric-label">Cores</div>
-                <div className="metric-value">
-                  {report.hardware.physicalCoreCount}
-                  <span className="metric-unit">
-                    physical / {report.hardware.logicalCoreCount} logical
-                  </span>
+                <div className="metric-label">{t.runtimeBenchmark.labelCores}</div>
+                <div className="metric-value" style={{ fontSize: "var(--text-md)" }}>
+                  {t.runtimeBenchmark.physicalLogicalCores(
+                    report.hardware.physicalCoreCount,
+                    report.hardware.logicalCoreCount,
+                  )}
                 </div>
               </div>
               <div className="metric-card">
-                <div className="metric-label">Total RAM</div>
+                <div className="metric-label">{t.runtimeBenchmark.labelTotalRam}</div>
                 <div className="metric-value">{formatBytes(report.hardware.totalMemoryBytes)}</div>
               </div>
               <div className="metric-card">
-                <div className="metric-label">Available RAM</div>
+                <div className="metric-label">{t.runtimeBenchmark.labelAvailableRam}</div>
                 <div className="metric-value">
                   {formatBytes(report.hardware.availableMemoryBytes)}
                 </div>
               </div>
               <div className="metric-card">
-                <div className="metric-label">RAM tier selected</div>
+                <div className="metric-label">{t.runtimeBenchmark.labelRamTier}</div>
                 <div className="metric-value" style={{ fontSize: "var(--text-md)" }}>
                   <Badge tone={report.ramTier === "standard" ? "success" : "warning"}>
                     {report.ramTier}
@@ -213,19 +216,19 @@ export function RuntimeBenchmark({ runtimeStatus }: { runtimeStatus: RuntimeStat
               </div>
             </div>
 
-            <div className="section-heading">Generation throughput</div>
+            <div className="section-heading">{t.runtimeBenchmark.sectionGenerationThroughput}</div>
             {report.generation ? (
               <div className="metric-grid">
                 <div className="metric-card">
-                  <div className="metric-label">Tokens / second</div>
+                  <div className="metric-label">{t.runtimeBenchmark.labelTokensPerSecond}</div>
                   <div className="metric-value">{report.generation.tokensPerSecond.toFixed(2)}</div>
                 </div>
                 <div className="metric-card">
-                  <div className="metric-label">Generated tokens</div>
+                  <div className="metric-label">{t.runtimeBenchmark.labelGeneratedTokens}</div>
                   <div className="metric-value">{report.generation.generatedTokens}</div>
                 </div>
                 <div className="metric-card">
-                  <div className="metric-label">Total duration</div>
+                  <div className="metric-label">{t.runtimeBenchmark.labelTotalDuration}</div>
                   <div className="metric-value">
                     {report.generation.totalDurationMs}
                     <span className="metric-unit">ms</span>
@@ -234,14 +237,12 @@ export function RuntimeBenchmark({ runtimeStatus }: { runtimeStatus: RuntimeStat
               </div>
             ) : (
               <div className="empty-state">
-                <p>No generation model was loaded for this run.</p>
+                <p>{t.runtimeBenchmark.noGenerationModel}</p>
               </div>
             )}
 
             <p className="notice" style={{ marginTop: "var(--space-6)" }}>
-              This ran on development hardware, not the competition&apos;s 8GB-RAM reference class —
-              see the ADTC benchmark suite&apos;s &ldquo;Efficiency&rdquo; section for why that gap
-              matters before citing these numbers in submission material.
+              {t.runtimeBenchmark.devHardwareNotice}
             </p>
           </>
         )}

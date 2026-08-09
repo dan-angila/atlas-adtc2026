@@ -2,6 +2,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 
 import App from "./App";
+import { I18nProvider } from "./i18n";
 // Self-hosted (offline, no CDN) — weight-axis-only variable Inter, all
 // script subsets. The webview loads only the subset files a rendered
 // page's unicode-range actually needs.
@@ -15,6 +16,8 @@ if (!rootElement) {
 
 ReactDOM.createRoot(rootElement).render(
   <React.StrictMode>
-    <App />
+    <I18nProvider>
+      <App />
+    </I18nProvider>
   </React.StrictMode>,
 );

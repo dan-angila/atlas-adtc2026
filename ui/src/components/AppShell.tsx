@@ -1,45 +1,22 @@
 import type { ReactNode } from "react";
 
 import { BookIcon, ChatIcon, DropletIcon, GaugeIcon, GlobeIcon } from "./icons";
+import { LanguageSelector } from "./LanguageSelector";
 import { RuntimeStatusPill } from "./RuntimeStatusPill";
+import { useTranslation } from "../i18n";
 import type { RuntimeStatusDto } from "../lib/tauri";
 
 export type Screen = "ask" | "knowledge" | "drugs" | "languages" | "runtime";
 
-const ATLAS_NAV_ITEMS: { id: Screen; label: string; icon: ReactNode }[] = [
-  { id: "ask", label: "Ask Atlas", icon: <ChatIcon /> },
-  { id: "knowledge", label: "Medical Knowledge", icon: <BookIcon /> },
-  { id: "drugs", label: "Drug Reference", icon: <DropletIcon /> },
-  { id: "languages", label: "Languages", icon: <GlobeIcon /> },
-  { id: "runtime", label: "Runtime & Benchmark", icon: <GaugeIcon /> },
-];
-
-const SCREEN_TITLES: Record<Screen, { title: string; subtitle: string }> = {
-  ask: {
-    title: "Ask Atlas",
-    subtitle:
-      "Question, retrieve, cite, and refuse safely when the local evidence is insufficient.",
-  },
-  knowledge: {
-    title: "Medical Knowledge",
-    subtitle: "Browse the real healthcare documents Atlas can retrieve and cite.",
-  },
-  drugs: {
-    title: "Drug Reference",
-    subtitle:
-      "Inspect medication-related evidence from the loaded corpus without turning Atlas into an ERP.",
-  },
-  languages: {
-    title: "Languages",
-    subtitle:
-      "See the registered language pack list and the actual measured validation results behind it.",
-  },
-  runtime: {
-    title: "Runtime & Benchmark",
-    subtitle:
-      "Expose the local runtime identity, readiness, and benchmark data without fabrication.",
-  },
+const NAV_ICONS: Record<Screen, ReactNode> = {
+  ask: <ChatIcon />,
+  knowledge: <BookIcon />,
+  drugs: <DropletIcon />,
+  languages: <GlobeIcon />,
+  runtime: <GaugeIcon />,
 };
+
+const NAV_ORDER: Screen[] = ["ask", "knowledge", "drugs", "languages", "runtime"];
 
 export function AppShell({
   active,
@@ -52,13 +29,21 @@ export function AppShell({
   runtimeStatus: RuntimeStatusDto | null;
   children: ReactNode;
 }) {
-  const { title, subtitle } = SCREEN_TITLES[active];
+  const t = useTranslation();
+  const { title, subtitle } = t.screenTitles[active];
+  const navLabel: Record<Screen, string> = {
+    ask: t.nav.ask,
+    knowledge: t.nav.knowledge,
+    drugs: t.nav.drugs,
+    languages: t.nav.languages,
+    runtime: t.nav.runtime,
+  };
   const runtimeSummary =
     runtimeStatus?.state === "ready"
-      ? `${runtimeStatus.documentCount ?? 0} local documents · ${runtimeStatus.languageCount ?? 0} languages registered`
+      ? t.runtimeSummary.ready(runtimeStatus.documentCount ?? 0, runtimeStatus.languageCount ?? 0)
       : runtimeStatus?.state === "loading"
-        ? "Preparing local models and knowledge base"
-        : "Desktop runtime required for real Atlas execution";
+        ? t.runtimeSummary.loading
+        : t.runtimeSummary.unavailable;
 
   return (
     <div className="app-shell">
@@ -69,51 +54,49 @@ export function AppShell({
               A
             </div>
             <div className="app-brand-text">
-              <h1>BRIX ATLAS</h1>
-              <p>Healthcare Intelligence</p>
+              <h1>{t.brand.name}</h1>
+              <p>{t.brand.tagline}</p>
             </div>
           </div>
-          <div className="sidebar-kicker">Offline / On-device</div>
-          <p className="sidebar-blurb">
-            Atlas answers from the evidence loaded on this machine. It cites what it used and
-            refuses when it cannot verify enough support.
-          </p>
+          <div className="sidebar-kicker">{t.brand.offlineOnDevice}</div>
+          <p className="sidebar-blurb">{t.brand.blurb}</p>
         </div>
 
-        <div className="nav-group-label">Workspace</div>
+        <LanguageSelector />
+
+        <div className="nav-group-label">{t.nav.workspace}</div>
         <ul className="nav-list">
-          {ATLAS_NAV_ITEMS.map((item) => (
-            <li key={item.id}>
+          {NAV_ORDER.map((id) => (
+            <li key={id}>
               <button
                 type="button"
-                className={`nav-item${active === item.id ? " active" : ""}`}
-                onClick={() => onNavigate(item.id)}
-                aria-current={active === item.id ? "page" : undefined}
-                title={item.label}
+                className={`nav-item${active === id ? " active" : ""}`}
+                onClick={() => onNavigate(id)}
+                aria-current={active === id ? "page" : undefined}
+                title={navLabel[id]}
               >
-                <span className="nav-icon">{item.icon}</span>
-                <span className="nav-label">{item.label}</span>
+                <span className="nav-icon">{NAV_ICONS[id]}</span>
+                <span className="nav-label">{navLabel[id]}</span>
               </button>
             </li>
           ))}
         </ul>
 
         <div className="sidebar-runtime-summary">
-          <span className="sidebar-kicker">Runtime</span>
+          <span className="sidebar-kicker">{t.brand.runtimeLabel}</span>
           <p>{runtimeSummary}</p>
         </div>
 
         <div className="sidebar-footer">
           <p className="notice" style={{ padding: "0 var(--space-3)" }}>
-            Not a diagnostic or prescribing tool. Atlas presents healthcare intelligence grounded in
-            loaded documents only.
+            {t.brand.disclaimer}
           </p>
         </div>
       </aside>
 
       <header className="app-header">
         <div className="app-header-title">
-          <span className="eyebrow">BRIX ATLAS</span>
+          <span className="eyebrow">{t.brand.name}</span>
           <h2>{title}</h2>
           <p>{subtitle}</p>
         </div>

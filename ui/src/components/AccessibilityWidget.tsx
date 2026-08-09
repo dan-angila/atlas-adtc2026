@@ -2,6 +2,7 @@ import { useState } from "react";
 
 import { AccessibilityIcon, CloseIcon } from "./icons";
 import { useAccessibility } from "../lib/useAccessibility";
+import { useTranslation } from "../i18n";
 
 const TEXT_SIZES: { label: string; scale: number }[] = [
   { label: "A", scale: 1 },
@@ -30,6 +31,7 @@ function Switch({ on, onToggle, label }: { on: boolean; onToggle: () => void; la
  * changes a real CSS rule; nothing is decorative.
  */
 export function AccessibilityWidget() {
+  const t = useTranslation();
   const [open, setOpen] = useState(false);
   const { settings, update, reset } = useAccessibility();
 
@@ -40,18 +42,18 @@ export function AccessibilityWidget() {
         className="a11y-trigger"
         onClick={() => setOpen((previous) => !previous)}
         aria-expanded={open}
-        aria-label={open ? "Close accessibility settings" : "Open accessibility settings"}
+        aria-label={open ? t.accessibility.closeSettings : t.accessibility.openSettings}
       >
         {open ? <CloseIcon /> : <AccessibilityIcon />}
       </button>
 
       {open && (
-        <div className="a11y-panel" role="dialog" aria-label="Accessibility settings">
-          <h3>Accessibility</h3>
+        <div className="a11y-panel" role="dialog" aria-label={t.accessibility.panelTitle}>
+          <h3>{t.accessibility.panelTitle}</h3>
 
           <div className="a11y-row">
-            <span>Text size</span>
-            <div className="a11y-segmented" role="group" aria-label="Text size">
+            <span>{t.accessibility.textSize}</span>
+            <div className="a11y-segmented" role="group" aria-label={t.accessibility.textSize}>
               {TEXT_SIZES.map((size, index) => (
                 <button
                   key={size.scale}
@@ -68,34 +70,34 @@ export function AccessibilityWidget() {
           </div>
 
           <div className="a11y-row">
-            <span>High contrast</span>
+            <span>{t.accessibility.highContrast}</span>
             <Switch
               on={settings.highContrast}
               onToggle={() => update("highContrast", !settings.highContrast)}
-              label="High contrast"
+              label={t.accessibility.highContrast}
             />
           </div>
 
           <div className="a11y-row">
-            <span>Reduce motion</span>
+            <span>{t.accessibility.reduceMotion}</span>
             <Switch
               on={settings.reducedMotion}
               onToggle={() => update("reducedMotion", !settings.reducedMotion)}
-              label="Reduce motion"
+              label={t.accessibility.reduceMotion}
             />
           </div>
 
           <div className="a11y-row">
-            <span>Always show focus ring</span>
+            <span>{t.accessibility.alwaysShowFocus}</span>
             <Switch
               on={settings.alwaysShowFocus}
               onToggle={() => update("alwaysShowFocus", !settings.alwaysShowFocus)}
-              label="Always show focus ring"
+              label={t.accessibility.alwaysShowFocus}
             />
           </div>
 
           <button type="button" className="btn btn-secondary a11y-reset" onClick={reset}>
-            Reset to defaults
+            {t.accessibility.resetDefaults}
           </button>
         </div>
       )}

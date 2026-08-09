@@ -3,15 +3,11 @@ import { useState } from "react";
 import { AlertIcon, DropletIcon, SearchIcon } from "../components/icons";
 import { Badge, confidenceTone } from "../components/Badge";
 import { atlas } from "../lib/tauri";
+import { useTranslation } from "../i18n";
 import type { KnowledgeSearchResponseDto, RuntimeStatusDto } from "../lib/tauri";
 
-const DRUG_QUERIES = [
-  "oral rehydration solution",
-  "malaria treatment drugs",
-  "blood pressure medicines",
-];
-
 export function DrugReference({ runtimeStatus }: { runtimeStatus: RuntimeStatusDto | null }) {
+  const t = useTranslation();
   const [draft, setDraft] = useState("");
   const [report, setReport] = useState<KnowledgeSearchResponseDto | null>(null);
   const [running, setRunning] = useState(false);
@@ -39,11 +35,13 @@ export function DrugReference({ runtimeStatus }: { runtimeStatus: RuntimeStatusD
     return (
       <div className="atlas-panel empty-state">
         <DropletIcon style={{ fontSize: 28 }} />
-        <h3>Waiting for the Atlas Runtime</h3>
+        <h3>{t.drugReference.waitingTitle}</h3>
         <p>
           {runtimeStatus?.state === "loading"
-            ? "Drug evidence search becomes available once the local models and corpus finish loading."
-            : (runtimeStatus?.reason ?? "The Atlas Runtime is not connected.")}
+            ? t.drugReference.waitingLoadingBody
+            : runtimeStatus?.reason
+              ? t.drugReference.waitingUnavailableBody(runtimeStatus.reason)
+              : t.drugReference.waitingDisconnected}
         </p>
       </div>
     );
@@ -53,15 +51,12 @@ export function DrugReference({ runtimeStatus }: { runtimeStatus: RuntimeStatusD
     <div className="product-screen">
       <section className="hero-panel compact">
         <div>
-          <span className="eyebrow">Drug Reference</span>
-          <h2>Evidence-first medication lookup</h2>
-          <p>
-            This screen searches the local healthcare corpus directly. It does not invent drug
-            facts, dispense medications, or act like a pharmacy system.
-          </p>
+          <span className="eyebrow">{t.screenTitles.drugs.title}</span>
+          <h2>{t.drugReference.heroTitle}</h2>
+          <p>{t.drugReference.heroSubtitle}</p>
         </div>
         <div className="hero-actions-row wrap">
-          {DRUG_QUERIES.map((query) => (
+          {t.drugReference.exampleQueries.map((query) => (
             <button key={query} type="button" className="chip-button" onClick={() => submit(query)}>
               {query}
             </button>
@@ -74,7 +69,7 @@ export function DrugReference({ runtimeStatus }: { runtimeStatus: RuntimeStatusD
           <div className="input-search atlas-search-input">
             <SearchIcon style={{ color: "var(--text-muted)" }} />
             <input
-              placeholder="Search the local corpus for a drug, treatment, or medication term..."
+              placeholder={t.drugReference.searchPlaceholder}
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
               onKeyDown={(event) => {
@@ -92,7 +87,7 @@ export function DrugReference({ runtimeStatus }: { runtimeStatus: RuntimeStatusD
             disabled={running || draft.trim().length === 0}
           >
             {running ? <span className="spinner" aria-hidden="true" /> : null}
-            Search local evidence
+            {t.drugReference.searchButton}
           </button>
         </div>
 
@@ -105,11 +100,8 @@ export function DrugReference({ runtimeStatus }: { runtimeStatus: RuntimeStatusD
 
         {!report && !error && (
           <div className="empty-state atlas-empty-inline">
-            <h3>No search yet</h3>
-            <p>
-              Enter a term to inspect the exact medication-related evidence Atlas can retrieve from
-              the loaded corpus.
-            </p>
+            <h3>{t.drugReference.noSearchTitle}</h3>
+            <p>{t.drugReference.noSearchBody}</p>
           </div>
         )}
 
@@ -118,14 +110,13 @@ export function DrugReference({ runtimeStatus }: { runtimeStatus: RuntimeStatusD
             <div className="toolbar">
               <Badge tone={confidenceTone(report.confidence)}>
                 {report.confidence === "strong"
-                  ? "Strong retrieval evidence"
+                  ? t.drugReference.confidenceStrong
                   : report.confidence === "weak"
-                    ? "Weak retrieval evidence"
-                    : "No evidence found"}
+                    ? t.drugReference.confidenceWeak
+                    : t.drugReference.confidenceNoEvidence}
               </Badge>
               <span className="notice">
-                {report.results.length} matching evidence record
-                {report.results.length === 1 ? "" : "s"}
+                {t.drugReference.matchingRecords(report.results.length)}
               </span>
             </div>
 
@@ -135,11 +126,8 @@ export function DrugReference({ runtimeStatus }: { runtimeStatus: RuntimeStatusD
                   <AlertIcon />
                 </span>
                 <div>
-                  <h4>Information unavailable in the current corpus</h4>
-                  <p>
-                    Atlas did not retrieve verified local evidence for this request. The product
-                    will not fill that gap with unsupported drug guidance.
-                  </p>
+                  <h4>{t.drugReference.noEvidenceTitle}</h4>
+                  <p>{t.drugReference.noEvidenceBody}</p>
                 </div>
               </div>
             ) : (
@@ -152,22 +140,30 @@ export function DrugReference({ runtimeStatus }: { runtimeStatus: RuntimeStatusD
                     <article className="knowledge-card evidence-card" key={result.chunkId}>
                       <div className="knowledge-card-topline">
                         <Badge tone={result.license ? "success" : "neutral"}>
-                          {result.license ? "License verified" : "Local corpus"}
+                          {result.license
+                            ? t.drugReference.licenseVerified
+                            : t.drugReference.localCorpus}
                         </Badge>
                         <div className="evidence-match-badges">
-                          {result.matchedLexical && <Badge tone="info">Lexical</Badge>}
-                          {result.matchedSemantic && <Badge tone="warning">Semantic</Badge>}
+                          {result.matchedLexical && (
+                            <Badge tone="info">{t.drugReference.lexicalBadge}</Badge>
+                          )}
+                          {result.matchedSemantic && (
+                            <Badge tone="warning">{t.drugReference.semanticBadge}</Badge>
+                          )}
                         </div>
                       </div>
-                      <h3>{result.documentTitle ?? "Untitled source"}</h3>
+                      <h3>{result.documentTitle ?? t.common.untitledSource}</h3>
                       {result.headingPath.length > 0 && (
                         <p className="knowledge-path">{result.headingPath.join(" / ")}</p>
                       )}
                       <p className="evidence-excerpt">{result.excerpt}</p>
                       <div className="knowledge-meta-list">
                         {meta.length > 0 && <span>{meta.join(" · ")}</span>}
-                        {result.retrievedDate && <span>Retrieved {result.retrievedDate}</span>}
-                        <span>Score {result.score.toFixed(3)}</span>
+                        {result.retrievedDate && (
+                          <span>{t.drugReference.retrievedOn(result.retrievedDate)}</span>
+                        )}
+                        <span>{t.drugReference.scoreLabel(result.score)}</span>
                       </div>
                     </article>
                   );

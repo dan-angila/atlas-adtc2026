@@ -11,23 +11,11 @@ import {
 } from "../components/icons";
 import { Badge, confidenceTone } from "../components/Badge";
 import { atlas } from "../lib/tauri";
+import { useTranslation } from "../i18n";
+import type { Translations } from "../i18n/types";
 import type { AskAtlasResponseDto, CitationDto, LanguageDto, RuntimeStatusDto } from "../lib/tauri";
 
-const SUGGESTED_QUESTIONS = [
-  { icon: <DropletIcon />, text: "What are the signs of dehydration?" },
-  { icon: <LungsIcon />, text: "What are the symptoms of malaria?" },
-  { icon: <PulseIcon />, text: "Why is prenatal care important during pregnancy?" },
-  { icon: <AlertIcon />, text: "What is oral rehydration solution used for?" },
-];
-
-const FLOW_STEPS = [
-  "Question",
-  "Local retrieval",
-  "Evidence",
-  "Confidence",
-  "Local generation",
-  "Cited answer",
-];
+const SUGGESTION_ICONS = [<DropletIcon />, <LungsIcon />, <PulseIcon />, <AlertIcon />];
 
 type Turn = {
   query: string;
@@ -37,7 +25,7 @@ type Turn = {
   error?: string;
 };
 
-function EvidencePanel({ citations }: { citations: CitationDto[] }) {
+function EvidencePanel({ citations, t }: { citations: CitationDto[]; t: Translations }) {
   if (citations.length === 0) {
     return null;
   }
@@ -54,10 +42,8 @@ function EvidencePanel({ citations }: { citations: CitationDto[] }) {
     <div className="answer-sections">
       <div className="evidence-panel">
         <div className="evidence-panel-header">
-          <h4>Evidence used</h4>
-          <span className="notice">
-            {citations.length} retrieved chunk{citations.length === 1 ? "" : "s"}
-          </span>
+          <h4>{t.askAtlas.evidenceUsedTitle}</h4>
+          <span className="notice">{t.askAtlas.retrievedChunks(citations.length)}</span>
         </div>
         {citations.map((citation, index) => {
           const meta = [
@@ -72,13 +58,13 @@ function EvidencePanel({ citations }: { citations: CitationDto[] }) {
             >
               <div className="evidence-item-body">
                 <span className="evidence-title">
-                  {citation.documentTitle ?? "Untitled source"}
+                  {citation.documentTitle ?? t.common.untitledSource}
                 </span>
                 {meta.length > 0 && <span className="evidence-meta">{meta.join(" · ")}</span>}
                 <p className="evidence-excerpt">{citation.excerpt}</p>
               </div>
               <span className="evidence-source-tag">
-                {citation.license ? "License verified" : "Local corpus"}
+                {citation.license ? t.askAtlas.licenseVerified : t.askAtlas.localCorpus}
               </span>
             </article>
           );
@@ -87,17 +73,17 @@ function EvidencePanel({ citations }: { citations: CitationDto[] }) {
 
       <div className="sources-panel">
         <div className="evidence-panel-header">
-          <h4>Sources</h4>
+          <h4>{t.askAtlas.sourcesTitle}</h4>
         </div>
         <ol className="source-list">
           {Array.from(sourceMap.values()).map((citation) => (
             <li key={citation.documentId}>
-              <span>{citation.documentTitle ?? "Untitled source"}</span>
+              <span>{citation.documentTitle ?? t.common.untitledSource}</span>
               <span className="notice">
                 {[
                   citation.organization,
                   citation.jurisdiction,
-                  citation.retrievedDate && `retrieved ${citation.retrievedDate}`,
+                  citation.retrievedDate && t.askAtlas.retrievedOn(citation.retrievedDate),
                 ]
                   .filter(Boolean)
                   .join(" · ")}
@@ -110,18 +96,16 @@ function EvidencePanel({ citations }: { citations: CitationDto[] }) {
   );
 }
 
-function TurnView({ turn }: { turn: Turn }) {
+function TurnView({ turn, t }: { turn: Turn; t: Translations }) {
   return (
     <div className="conversation-turn">
-      <div className="turn-label">Question</div>
+      <div className="turn-label">{t.askAtlas.questionLabel}</div>
       <div className="turn-query">{turn.displayQuery}</div>
 
       {turn.status === "pending" && (
         <div className="atlas-status-row">
           <span className="spinner" aria-hidden="true" />
-          <span>
-            Running local retrieval, assessing confidence, and generating a grounded answer…
-          </span>
+          <span>{t.askAtlas.pendingStatus}</span>
         </div>
       )}
 
@@ -134,27 +118,24 @@ function TurnView({ turn }: { turn: Turn }) {
 
       {turn.status === "done" && turn.response?.outcome === "answered" && (
         <div className="turn-answer-surface">
-          <div className="turn-label">Atlas</div>
+          <div className="turn-label">{t.askAtlas.atlasLabel}</div>
           <div className="toolbar" style={{ marginBottom: "var(--space-3)" }}>
             <Badge tone={confidenceTone(turn.response.confidence)}>
-              {turn.response.confidence === "strong" ? "Strong evidence" : "Weak evidence"}
+              {turn.response.confidence === "strong"
+                ? t.askAtlas.confidenceStrong
+                : t.askAtlas.confidenceWeak}
             </Badge>
             <span className="notice">
-              {turn.response.generatedTokens} tokens · {turn.response.tokensPerSecond.toFixed(1)}{" "}
-              tok/s
+              {t.askAtlas.tokenStats(turn.response.generatedTokens, turn.response.tokensPerSecond)}
             </span>
             <span className="notice">
-              {turn.response.citations.length} cited evidence record
-              {turn.response.citations.length === 1 ? "" : "s"}
+              {t.askAtlas.citedRecords(turn.response.citations.length)}
             </span>
           </div>
           <div className="turn-answer">{turn.response.answer}</div>
-          <div className="answer-disclaimer">
-            Answers are generated from the loaded corpus and should be interpreted as
-            evidence-grounded assistance, not diagnosis or prescribing advice.
-          </div>
+          <div className="answer-disclaimer">{t.askAtlas.answerDisclaimer}</div>
           <div style={{ marginTop: "var(--space-4)" }}>
-            <EvidencePanel citations={turn.response.citations} />
+            <EvidencePanel citations={turn.response.citations} t={t} />
           </div>
         </div>
       )}
@@ -165,21 +146,21 @@ function TurnView({ turn }: { turn: Turn }) {
             <ShieldIcon />
           </span>
           <div>
-            <div className="turn-label">Atlas</div>
+            <div className="turn-label">{t.askAtlas.atlasLabel}</div>
             <h4>
               {turn.response.reason === "no-evidence"
-                ? "No supporting evidence found in the local corpus"
-                : "Insufficient corroborated evidence in the local corpus"}
+                ? t.askAtlas.refusalNoEvidenceTitle
+                : t.askAtlas.refusalInsufficientTitle}
             </h4>
             <p>
               {turn.response.reason === "no-evidence"
-                ? "I could not retrieve relevant evidence for this question in the loaded knowledge base. Atlas will not guess when no source support is available."
-                : "I retrieved only weakly corroborated evidence for this question. Atlas will not generate a medical answer when the retrieval support is too weak."}
+                ? t.askAtlas.refusalNoEvidenceBody
+                : t.askAtlas.refusalInsufficientBody}
             </p>
             <p className="notice" style={{ marginTop: "var(--space-2)" }}>
               {turn.response.reason === "no-evidence"
-                ? "Evidence available: none relevant enough to support a grounded response."
-                : "Evidence available: weakly related, not reliable enough to answer safely."}
+                ? t.askAtlas.refusalNoEvidenceNote
+                : t.askAtlas.refusalInsufficientNote}
             </p>
           </div>
         </div>
@@ -188,7 +169,7 @@ function TurnView({ turn }: { turn: Turn }) {
       {turn.status === "done" && turn.response?.outcome === "failed" && (
         <div className="error-banner">
           <AlertIcon />
-          <span>Generation failed: {turn.response.message}</span>
+          <span>{t.askAtlas.generationFailed(turn.response.message)}</span>
         </div>
       )}
     </div>
@@ -196,6 +177,7 @@ function TurnView({ turn }: { turn: Turn }) {
 }
 
 export function AskAtlas({ runtimeStatus }: { runtimeStatus: RuntimeStatusDto | null }) {
+  const t = useTranslation();
   const [turns, setTurns] = useState<Turn[]>([]);
   const [input, setInput] = useState("");
   const [languages, setLanguages] = useState<LanguageDto[]>([]);
@@ -283,27 +265,24 @@ export function AskAtlas({ runtimeStatus }: { runtimeStatus: RuntimeStatusDto | 
     <div className="product-screen ask-atlas-screen">
       <section className="hero-panel ask-hero-panel">
         <div className="hero-copy">
-          <span className="eyebrow">BRIX ATLAS</span>
-          <h1>Offline Healthcare Intelligence</h1>
-          <p>
-            Atlas runs on-device, retrieves from the local healthcare corpus, measures confidence
-            before answering, and cites the evidence it used.
-          </p>
+          <span className="eyebrow">{t.brand.name}</span>
+          <h1>{t.askAtlas.heroTitle}</h1>
+          <p>{t.askAtlas.heroSubtitle}</p>
           <div className="hero-actions-row">
-            <Badge tone="success">Offline / on-device</Badge>
+            <Badge tone="success">{t.askAtlas.badgeOffline}</Badge>
             <Badge
               tone={
                 runtimeReady ? "success" : runtimeStatus?.state === "loading" ? "warning" : "danger"
               }
             >
               {runtimeReady
-                ? "Runtime connected"
+                ? t.askAtlas.badgeRuntimeConnected
                 : runtimeStatus?.state === "loading"
-                  ? "Runtime loading"
-                  : "Runtime unavailable"}
+                  ? t.askAtlas.badgeRuntimeLoading
+                  : t.askAtlas.badgeRuntimeUnavailable}
             </Badge>
             {selectedLanguage && (
-              <Badge tone="info">Language: {selectedLanguage.englishName}</Badge>
+              <Badge tone="info">{t.askAtlas.badgeLanguage(selectedLanguage.englishName)}</Badge>
             )}
           </div>
         </div>
@@ -311,30 +290,30 @@ export function AskAtlas({ runtimeStatus }: { runtimeStatus: RuntimeStatusDto | 
         <div className="hero-side-panel">
           <div className="hero-metric-grid">
             <div>
-              <span className="hero-metric-label">Documents</span>
-              <strong>{runtimeStatus?.documentCount ?? "Not measured"}</strong>
+              <span className="hero-metric-label">{t.askAtlas.metricDocuments}</span>
+              <strong>{runtimeStatus?.documentCount ?? t.common.notMeasured}</strong>
             </div>
             <div>
-              <span className="hero-metric-label">Languages</span>
-              <strong>{runtimeStatus?.languageCount ?? "Not measured"}</strong>
+              <span className="hero-metric-label">{t.askAtlas.metricLanguages}</span>
+              <strong>{runtimeStatus?.languageCount ?? t.common.notMeasured}</strong>
             </div>
             <div>
-              <span className="hero-metric-label">Execution</span>
-              <strong>Local only</strong>
+              <span className="hero-metric-label">{t.askAtlas.metricExecution}</span>
+              <strong>{t.askAtlas.executionLocalOnly}</strong>
             </div>
           </div>
         </div>
 
         <div className="hero-flow-row">
-          <span className="hero-flow-label">How Atlas answers</span>
-          <div className="flow-diagram" aria-label="Atlas retrieval and answer flow">
-            {FLOW_STEPS.map((step, index) => (
+          <span className="hero-flow-label">{t.askAtlas.flowLabel}</span>
+          <div className="flow-diagram" aria-label={t.askAtlas.flowLabel}>
+            {t.askAtlas.flowSteps.map((step, index) => (
               <Fragment key={step}>
                 <div className="flow-step">
                   <span className="flow-step-marker">{index + 1}</span>
                   <span className="flow-step-label">{step}</span>
                 </div>
-                {index < FLOW_STEPS.length - 1 && (
+                {index < t.askAtlas.flowSteps.length - 1 && (
                   <span className="flow-connector" aria-hidden="true" />
                 )}
               </Fragment>
@@ -346,24 +325,24 @@ export function AskAtlas({ runtimeStatus }: { runtimeStatus: RuntimeStatusDto | 
       <section className="atlas-panel ask-composer-panel">
         <div className="toolbar ask-toolbar">
           <div className="hero-actions-row wrap">
-            {SUGGESTED_QUESTIONS.map((question) => (
+            {t.askAtlas.suggestedQuestions.map((question, index) => (
               <button
                 type="button"
-                key={question.text}
+                key={question}
                 className="suggestion-card atlas-suggestion-card"
-                onClick={() => submit(question.text)}
+                onClick={() => submit(question)}
                 disabled={!runtimeReady}
               >
                 <span className="suggestion-card-icon" aria-hidden="true">
-                  {question.icon}
+                  {SUGGESTION_ICONS[index]}
                 </span>
-                <span className="suggestion-card-text">{question.text}</span>
+                <span className="suggestion-card-text">{question}</span>
               </button>
             ))}
           </div>
 
           <label className="language-picker">
-            <span>Interaction language</span>
+            <span>{t.askAtlas.interactionLanguageLabel}</span>
             <select value={languageCode} onChange={(event) => setLanguageCode(event.target.value)}>
               {languages.length === 0 ? (
                 <option value="en">English</option>
@@ -384,14 +363,11 @@ export function AskAtlas({ runtimeStatus }: { runtimeStatus: RuntimeStatusDto | 
           {turns.length === 0 ? (
             <div className="atlas-panel ask-empty-state">
               <ChatIcon style={{ fontSize: 28, color: "var(--accent-500)" }} />
-              <h2>Ask Atlas</h2>
-              <p>
-                Start with a healthcare question supported by the loaded corpus. Atlas will show the
-                evidence, confidence, and final cited answer in one place.
-              </p>
+              <h2>{t.askAtlas.emptyStateTitle}</h2>
+              <p>{t.askAtlas.emptyStateBody}</p>
             </div>
           ) : (
-            turns.map((turn, index) => <TurnView turn={turn} key={index} />)
+            turns.map((turn, index) => <TurnView turn={turn} t={t} key={index} />)
           )}
 
           {!runtimeReady && runtimeStatus && (
@@ -399,8 +375,10 @@ export function AskAtlas({ runtimeStatus }: { runtimeStatus: RuntimeStatusDto | 
               <AlertIcon />
               <span>
                 {runtimeStatus.state === "loading"
-                  ? "The model is still loading — real model loads have measured around 50 seconds on this project's development hardware; timing on the competition's reference hardware has not been measured."
-                  : `Atlas Runtime unavailable: ${runtimeStatus.reason}`}
+                  ? t.askAtlas.modelLoadingBanner
+                  : t.askAtlas.runtimeUnavailableBanner(
+                      runtimeStatus.reason ?? t.runtimeSummary.unavailable,
+                    )}
               </span>
             </div>
           )}
@@ -410,9 +388,7 @@ export function AskAtlas({ runtimeStatus }: { runtimeStatus: RuntimeStatusDto | 
           <div className="ask-input-shell">
             <textarea
               placeholder={
-                runtimeReady
-                  ? "Ask Atlas a healthcare question grounded in the local corpus..."
-                  : "Waiting for the Runtime..."
+                runtimeReady ? t.askAtlas.inputPlaceholderReady : t.askAtlas.inputPlaceholderWaiting
               }
               rows={1}
               value={input}
@@ -425,15 +401,12 @@ export function AskAtlas({ runtimeStatus }: { runtimeStatus: RuntimeStatusDto | 
               className="btn btn-primary btn-icon"
               onClick={() => submit(input)}
               disabled={!runtimeReady || input.trim().length === 0}
-              aria-label="Send"
+              aria-label={t.askAtlas.sendLabel}
             >
               <SendIcon />
             </button>
           </div>
-          <p className="ask-disclaimer">
-            Atlas is a healthcare knowledge assistant. It does not diagnose, prescribe, or replace a
-            qualified healthcare professional.
-          </p>
+          <p className="ask-disclaimer">{t.askAtlas.disclaimer}</p>
         </div>
       </div>
     </div>

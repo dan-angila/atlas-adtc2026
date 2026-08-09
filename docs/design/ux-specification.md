@@ -99,6 +99,24 @@ The implemented visual direction is a restrained dark Atlas workstation with:
 
 ## 9. Accessibility and internationalization
 
-The accessibility widget remains global and functional. Language selection is
-backed by the real language registry, and the Languages screen distinguishes
-between registration and measured validation.
+The accessibility widget remains global and functional. Two independent
+language settings exist by design, not by accident:
+
+- **Interface language** (sidebar `LanguageSelector`): the UI chrome itself —
+  navigation, headings, buttons, empty/waiting states, disclaimers. Backed by
+  `ui/src/i18n/`, a full 24-language dictionary (`en.ts` plus 23 locale
+  files) with every screen wired to `useTranslation()`. Persisted to
+  `localStorage`, defaults to English, falls back safely if unavailable.
+  Every non-English locale is flagged in the UI as machine-translated and
+  not yet reviewed by a native speaker (`uiLanguage.unverifiedNote`) — this
+  is an honest, permanent state, not a launch-day caveat.
+- **Answer language** (Ask Atlas's own per-question selector): which language
+  Atlas is asked to answer in, sourced from `list_languages` and the real
+  backend Language Registry's measured validation status (see the Languages
+  screen). A user can read the interface in French while asking a question
+  answered in Swahili; the two settings do not need to match.
+
+RTL is supported for Arabic today (the only RTL-registered language): the
+app-shell grid, sidebar border, and nav active-item accent mirror correctly
+under `dir="rtl"`; everything else re-flows via native flexbox `direction`
+inheritance without extra rules.

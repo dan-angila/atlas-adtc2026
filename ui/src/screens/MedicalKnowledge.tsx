@@ -3,9 +3,11 @@ import { useEffect, useState } from "react";
 import { AlertIcon, DocumentIcon, SearchIcon } from "../components/icons";
 import { Badge } from "../components/Badge";
 import { atlas } from "../lib/tauri";
+import { useTranslation } from "../i18n";
 import type { DocumentSummaryDto, RuntimeStatusDto } from "../lib/tauri";
 
 export function MedicalKnowledge({ runtimeStatus }: { runtimeStatus: RuntimeStatusDto | null }) {
+  const t = useTranslation();
   const [documents, setDocuments] = useState<DocumentSummaryDto[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
@@ -30,11 +32,13 @@ export function MedicalKnowledge({ runtimeStatus }: { runtimeStatus: RuntimeStat
     return (
       <div className="empty-state">
         <DocumentIcon style={{ fontSize: 28 }} />
-        <h3>Waiting for the Runtime</h3>
+        <h3>{t.medicalKnowledge.waitingTitle}</h3>
         <p>
           {runtimeStatus?.state === "loading"
-            ? "The knowledge base loads alongside the model."
-            : (runtimeStatus?.reason ?? "The Atlas Runtime is not connected.")}
+            ? t.medicalKnowledge.waitingLoadingBody
+            : runtimeStatus?.reason
+              ? t.medicalKnowledge.waitingUnavailableBody(runtimeStatus.reason)
+              : t.medicalKnowledge.waitingDisconnected}
         </p>
       </div>
     );
@@ -79,24 +83,21 @@ export function MedicalKnowledge({ runtimeStatus }: { runtimeStatus: RuntimeStat
     <div className="product-screen">
       <section className="hero-panel compact">
         <div>
-          <span className="eyebrow">Medical Knowledge</span>
-          <h2>Browse the documents Atlas can actually cite</h2>
-          <p>
-            Provenance is part of the product. Every title, organization, jurisdiction, and license
-            field shown here comes from the loaded corpus metadata.
-          </p>
+          <span className="eyebrow">{t.screenTitles.knowledge.title}</span>
+          <h2>{t.medicalKnowledge.heroTitle}</h2>
+          <p>{t.medicalKnowledge.heroSubtitle}</p>
         </div>
         <div className="hero-metric-grid compact-grid">
           <div>
-            <span className="hero-metric-label">Loaded documents</span>
+            <span className="hero-metric-label">{t.medicalKnowledge.metricLoaded}</span>
             <strong>{documents.length}</strong>
           </div>
           <div>
-            <span className="hero-metric-label">License verified</span>
+            <span className="hero-metric-label">{t.medicalKnowledge.metricLicenseVerified}</span>
             <strong>{licensedCount}</strong>
           </div>
           <div>
-            <span className="hero-metric-label">Jurisdictions</span>
+            <span className="hero-metric-label">{t.medicalKnowledge.metricJurisdictions}</span>
             <strong>{jurisdictionCount}</strong>
           </div>
         </div>
@@ -107,28 +108,23 @@ export function MedicalKnowledge({ runtimeStatus }: { runtimeStatus: RuntimeStat
           <div className="input-search" style={{ maxWidth: 360 }}>
             <SearchIcon style={{ color: "var(--text-muted)" }} />
             <input
-              placeholder="Filter by title, source, or jurisdiction..."
+              placeholder={t.medicalKnowledge.searchPlaceholder}
               value={query}
               onChange={(event) => setQuery(event.target.value)}
             />
           </div>
-          <Badge tone="neutral">
-            {documents.length} document{documents.length === 1 ? "" : "s"} loaded
-          </Badge>
+          <Badge tone="neutral">{t.medicalKnowledge.documentsLoadedBadge(documents.length)}</Badge>
         </div>
 
         <p className="notice" style={{ marginBottom: "var(--space-5)" }}>
-          Atlas cites from this catalog. Empty metadata is left empty on purpose; the UI does not
-          backfill provenance with placeholders.
+          {t.medicalKnowledge.provenanceNotice}
         </p>
 
         {filtered.length === 0 ? (
           <div className="empty-state">
             <SearchIcon style={{ fontSize: 24 }} />
-            <h3>No documents match &ldquo;{query}&rdquo;</h3>
-            <p>
-              Try a different title, or ask Atlas directly — retrieval searches full document text.
-            </p>
+            <h3>{t.medicalKnowledge.noMatchTitle(query)}</h3>
+            <p>{t.medicalKnowledge.noMatchBody}</p>
           </div>
         ) : (
           <div className="knowledge-grid">
@@ -136,28 +132,32 @@ export function MedicalKnowledge({ runtimeStatus }: { runtimeStatus: RuntimeStat
               <article className="knowledge-card" key={document.id}>
                 <div className="knowledge-card-topline">
                   <Badge tone="neutral">{document.format}</Badge>
-                  {document.license && <Badge tone="success">License verified</Badge>}
+                  {document.license && (
+                    <Badge tone="success">{t.medicalKnowledge.metricLicenseVerified}</Badge>
+                  )}
                 </div>
                 <h3>{document.title}</h3>
                 <div className="knowledge-meta-list">
                   {document.organization && <span>{document.organization}</span>}
                   {document.jurisdiction && <span>{document.jurisdiction}</span>}
-                  {document.retrievedDate && <span>Retrieved {document.retrievedDate}</span>}
+                  {document.retrievedDate && (
+                    <span>{t.medicalKnowledge.retrievedOn(document.retrievedDate)}</span>
+                  )}
                 </div>
                 <dl className="meta-row-group">
                   <div className="meta-row">
-                    <dt>Source path</dt>
+                    <dt>{t.medicalKnowledge.sourcePathLabel}</dt>
                     <dd>{document.sourcePath}</dd>
                   </div>
                   {document.sourceUrl && (
                     <div className="meta-row">
-                      <dt>Source URL</dt>
+                      <dt>{t.medicalKnowledge.sourceUrlLabel}</dt>
                       <dd>{document.sourceUrl}</dd>
                     </div>
                   )}
                   {document.license && (
                     <div className="meta-row">
-                      <dt>License</dt>
+                      <dt>{t.medicalKnowledge.licenseLabel}</dt>
                       <dd>{document.license}</dd>
                     </div>
                   )}

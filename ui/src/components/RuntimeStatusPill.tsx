@@ -1,4 +1,5 @@
 import { WifiOffIcon } from "./icons";
+import { useTranslation } from "../i18n";
 import type { RuntimeStatusDto } from "../lib/tauri";
 
 /**
@@ -8,14 +9,12 @@ import type { RuntimeStatusDto } from "../lib/tauri";
  * look while the real Runtime is still loading or unavailable.
  */
 export function RuntimeStatusPill({ status }: { status: RuntimeStatusDto | null }) {
+  const t = useTranslation();
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-      <span
-        className="offline-pill"
-        title="Atlas performs all inference on this device — no network call is made."
-      >
+      <span className="offline-pill" title={t.runtimeStatusPill.offlineTitle}>
         <WifiOffIcon />
-        Offline / on-device
+        {t.brand.offlineOnDevice}
       </span>
       <span
         className="runtime-pill"
@@ -33,12 +32,12 @@ export function RuntimeStatusPill({ status }: { status: RuntimeStatusDto | null 
           }}
         />
         {status === null
-          ? "Checking runtime…"
+          ? t.runtimeStatusPill.checking
           : status.state === "ready"
-            ? "Model ready"
+            ? t.runtimeStatusPill.modelReady
             : status.state === "loading"
-              ? "Loading model…"
-              : "Runtime unavailable"}
+              ? t.runtimeStatusPill.loadingModel
+              : t.runtimeStatusPill.unavailable}
       </span>
     </div>
   );

@@ -3,18 +3,11 @@ import { useEffect, useState } from "react";
 import { AlertIcon, GlobeIcon } from "../components/icons";
 import { Badge, validationTone } from "../components/Badge";
 import { atlas } from "../lib/tauri";
+import { useTranslation } from "../i18n";
 import type { LanguageDto, RuntimeStatusDto } from "../lib/tauri";
 
-const STATUS_LABEL: Record<LanguageDto["validationStatus"], string> = {
-  validated: "Validated",
-  "plausible-fluent": "Plausible fluent",
-  partial: "Partial",
-  inconclusive: "Inconclusive",
-  garbled: "Garbled",
-  failed: "Failed",
-};
-
 export function Languages({ runtimeStatus }: { runtimeStatus: RuntimeStatusDto | null }) {
+  const t = useTranslation();
   const [languages, setLanguages] = useState<LanguageDto[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -38,8 +31,8 @@ export function Languages({ runtimeStatus }: { runtimeStatus: RuntimeStatusDto |
     return (
       <div className="empty-state">
         <GlobeIcon style={{ fontSize: 28 }} />
-        <h3>Waiting for the Runtime</h3>
-        <p>{runtimeStatus?.reason ?? "The Atlas Runtime is not connected."}</p>
+        <h3>{t.languagesScreen.waitingTitle}</h3>
+        <p>{runtimeStatus?.reason ?? t.languagesScreen.waitingDisconnected}</p>
       </div>
     );
   }
@@ -81,28 +74,27 @@ export function Languages({ runtimeStatus }: { runtimeStatus: RuntimeStatusDto |
     <div className="product-screen">
       <section className="hero-panel compact">
         <div>
-          <span className="eyebrow">Languages</span>
-          <h2>Registered does not mean fully validated</h2>
-          <p>
-            This registry is real application data. The status shown for each language reflects
-            measured evaluation, not a marketing claim based on mere registration.
-          </p>
+          <span className="eyebrow">{t.screenTitles.languages.title}</span>
+          <h2>{t.languagesScreen.heroTitle}</h2>
+          <p>{t.languagesScreen.heroSubtitle}</p>
         </div>
         <div className="hero-metric-grid compact-grid">
           <div>
-            <span className="hero-metric-label">Registered</span>
+            <span className="hero-metric-label">{t.languagesScreen.metricRegistered}</span>
             <strong>{registryCount}</strong>
           </div>
           <div>
-            <span className="hero-metric-label">Retrieval / generation validated</span>
+            <span className="hero-metric-label">{t.languagesScreen.metricValidated}</span>
             <strong>{validatedCount}</strong>
           </div>
           <div>
-            <span className="hero-metric-label">Plausible fluent</span>
+            <span className="hero-metric-label">{t.languagesScreen.metricPlausible}</span>
             <strong>{plausibleCount}</strong>
           </div>
           <div>
-            <span className="hero-metric-label">Partial or inconclusive</span>
+            <span className="hero-metric-label">
+              {t.languagesScreen.metricPartialOrInconclusive}
+            </span>
             <strong>{partialOrInconclusiveCount}</strong>
           </div>
         </div>
@@ -119,12 +111,7 @@ export function Languages({ runtimeStatus }: { runtimeStatus: RuntimeStatusDto |
           }}
         >
           <AlertIcon />
-          <span>
-            Registration in this list is metadata only, not a capability claim. Real generation
-            testing against Qwen3-4B on 2026-08-08 found only <strong>{validatedCount}</strong> of{" "}
-            {languages.length} languages produce reliably correct output — see the status column
-            below for every language's actual, measured result.
-          </span>
+          <span>{t.languagesScreen.banner(validatedCount, languages.length)}</span>
         </div>
 
         <div className="knowledge-grid">
@@ -144,7 +131,7 @@ export function Languages({ runtimeStatus }: { runtimeStatus: RuntimeStatusDto |
                 <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                   <Badge tone="neutral">{language.direction.toUpperCase()}</Badge>
                   <Badge tone={validationTone(language.validationStatus)}>
-                    {STATUS_LABEL[language.validationStatus]}
+                    {t.languagesScreen.statusLabels[language.validationStatus]}
                   </Badge>
                 </div>
               </div>
