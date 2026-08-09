@@ -1,7 +1,6 @@
 import type { ReactNode } from "react";
 
 import { BookIcon, ChatIcon, DropletIcon, GaugeIcon, GlobeIcon } from "./icons";
-import { LanguageSelector } from "./LanguageSelector";
 import { RuntimeStatusPill } from "./RuntimeStatusPill";
 import { useTranslation } from "../i18n";
 import type { RuntimeStatusDto } from "../lib/tauri";
@@ -61,8 +60,6 @@ export function AppShell({
           <div className="sidebar-kicker">{t.brand.offlineOnDevice}</div>
           <p className="sidebar-blurb">{t.brand.blurb}</p>
         </div>
-
-        <LanguageSelector />
 
         <div className="nav-group-label">{t.nav.workspace}</div>
         <ul className="nav-list">

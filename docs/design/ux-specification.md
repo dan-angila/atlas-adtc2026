@@ -99,24 +99,52 @@ The implemented visual direction is a restrained dark Atlas workstation with:
 
 ## 9. Accessibility and internationalization
 
-The accessibility widget remains global and functional. Two independent
-language settings exist by design, not by accident:
+The accessibility control (`AccessibilityWidget`) is a single global
+entry point — a floating trigger reachable from every screen — that
+now owns both real accessibility settings and interface-language
+selection, rather than splitting language into a separate sidebar
+control. It previously lived as a standalone `LanguageSelector` native
+`<select>` pinned in the sidebar; that control dominated the screen
+when opened (a native select's popup is OS/webview chrome, not
+CSS-stylable) and sat visually disconnected from the accessibility
+button. It has been removed in favor of a compact custom listbox
+(`LanguagePicker`, inside `AccessibilityWidget.tsx`) presented as a row
+inside the same popover, following the WAI-ARIA "Collapsible Dropdown
+Listbox" pattern (trigger button + `role="listbox"`, `aria-activedescendant`
+roving focus, `ArrowUp`/`ArrowDown`/`Home`/`End`/`Enter`/`Escape`, a
+220px scroll-contained option list rather than an OS-rendered overlay).
 
-- **Interface language** (sidebar `LanguageSelector`): the UI chrome itself —
-  navigation, headings, buttons, empty/waiting states, disclaimers. Backed by
-  `ui/src/i18n/`, a full 24-language dictionary (`en.ts` plus 23 locale
-  files) with every screen wired to `useTranslation()`. Persisted to
-  `localStorage`, defaults to English, falls back safely if unavailable.
-  Every non-English locale is flagged in the UI as machine-translated and
-  not yet reviewed by a native speaker (`uiLanguage.unverifiedNote`) — this
-  is an honest, permanent state, not a launch-day caveat.
+Two independent language settings still exist by design, not by accident:
+
+- **Interface language** (`AccessibilityWidget`'s language row): the UI
+  chrome itself — navigation, headings, buttons, empty/waiting states,
+  disclaimers. Backed by `ui/src/i18n/`, a full 24-language dictionary
+  (`en.ts` plus 23 locale files) with every screen wired to
+  `useTranslation()`. Persisted to `localStorage`, defaults to English,
+  falls back safely if unavailable. Every non-English locale is flagged
+  in the UI as machine-translated and not yet reviewed by a native
+  speaker (`uiLanguage.unverifiedNote`) — this is an honest, permanent
+  state, not a launch-day caveat.
 - **Answer language** (Ask Atlas's own per-question selector): which language
   Atlas is asked to answer in, sourced from `list_languages` and the real
   backend Language Registry's measured validation status (see the Languages
   screen). A user can read the interface in French while asking a question
-  answered in Swahili; the two settings do not need to match.
+  answered in Swahili; the two settings do not need to match. This selector
+  stays a small, contextual native `<select>` inside the Ask Atlas query
+  form — not a sidebar-dominating control, so it wasn't part of the
+  consolidation.
+
+The accessibility popover itself gained real focus management as part of
+this pass: `Escape` closes it and returns focus to the trigger button,
+a document-level click outside the panel closes it, and the nested
+language listbox closes on its own `Escape`/blur/outside-click without
+also collapsing the parent popover (the listbox's key handler stops
+propagation so the two layers don't fight over one keypress).
 
 RTL is supported for Arabic today (the only RTL-registered language): the
 app-shell grid, sidebar border, and nav active-item accent mirror correctly
 under `dir="rtl"`; everything else re-flows via native flexbox `direction`
-inheritance without extra rules.
+inheritance without extra rules. The floating accessibility
+trigger/panel use `inset-inline-end` (not `right`) so they mirror to the
+left edge under RTL instead of staying visually stranded on the physical
+right.

@@ -446,8 +446,8 @@ textarea {
   box-shadow: inset -2px 0 0 var(--sidebar-accent);
 }
 
-[dir="rtl"] .ui-language-picker label {
-  flex-direction: row-reverse;
+[dir="rtl"] .a11y-language-current {
+  text-align: right;
 }
 
 /* ---------- Primitives ---------- */
@@ -1260,54 +1260,6 @@ body {
   border-bottom: 1px solid var(--sidebar-border);
 }
 
-.ui-language-picker {
-  padding: var(--space-3) var(--space-3) var(--space-4);
-  border-top: 1px solid var(--sidebar-border);
-  border-bottom: 1px solid var(--sidebar-border);
-  margin-bottom: var(--space-2);
-}
-
-.ui-language-picker label {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--sidebar-text-muted);
-  margin-bottom: var(--space-2);
-}
-
-.ui-language-picker label svg {
-  width: 13px;
-  height: 13px;
-  flex-shrink: 0;
-}
-
-.ui-language-picker select {
-  width: 100%;
-  border: 1px solid var(--sidebar-border);
-  background: rgba(255, 255, 255, 0.04);
-  color: var(--sidebar-text-active);
-  border-radius: var(--radius-sm);
-  padding: 8px 10px;
-  font-size: var(--text-xs);
-  font-family: inherit;
-}
-
-.ui-language-picker select:focus-visible {
-  outline: 2px solid var(--sidebar-accent);
-  outline-offset: 1px;
-}
-
-.ui-language-note {
-  margin: var(--space-2) 0 0;
-  font-size: 11px;
-  line-height: 1.5;
-  color: var(--sidebar-text-muted);
-}
-
 .product-screen {
   display: flex;
   flex-direction: column;
@@ -1906,7 +1858,7 @@ body {
 
 .a11y-trigger {
   position: fixed;
-  right: var(--space-5);
+  inset-inline-end: var(--space-5);
   bottom: var(--space-5);
   z-index: 50;
   width: 44px;
@@ -1937,10 +1889,13 @@ body {
 
 .a11y-panel {
   position: fixed;
-  right: var(--space-5);
+  inset-inline-end: var(--space-5);
   bottom: 72px;
   z-index: 50;
-  width: 280px;
+  width: 300px;
+  max-width: calc(100vw - var(--space-6));
+  max-height: calc(100vh - 96px);
+  overflow-y: auto;
   background: var(--surface-raised);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-lg);
@@ -1965,6 +1920,104 @@ body {
 
 .a11y-row:first-of-type {
   border-top: none;
+}
+
+.a11y-row-language {
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-2);
+}
+
+.a11y-language {
+  position: relative;
+}
+
+.a11y-language-trigger {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  border: 1px solid var(--border-default);
+  background: var(--surface-base);
+  color: var(--text-primary);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  font-size: var(--text-xs);
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.a11y-language-trigger svg {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+  color: var(--text-muted);
+  transition: transform 120ms ease;
+}
+
+.a11y-language-trigger:focus-visible {
+  outline: 2px solid var(--accent-500);
+  outline-offset: 1px;
+}
+
+.a11y-language-current {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.a11y-language-listbox {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 60;
+  max-height: 220px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  background: var(--surface-raised);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+}
+
+.a11y-language-listbox:focus-visible {
+  outline: none;
+}
+
+.a11y-language-option {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-xs);
+  cursor: pointer;
+}
+
+.a11y-language-option.active {
+  background: var(--accent-50);
+}
+
+.a11y-language-option[aria-selected="true"] {
+  font-weight: 700;
+}
+
+.a11y-language-option-en {
+  color: var(--text-muted);
+  font-weight: 400;
+  flex-shrink: 0;
+}
+
+.a11y-language-note {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-muted);
 }
 
 .a11y-segmented {

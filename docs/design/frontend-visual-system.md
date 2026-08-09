@@ -285,3 +285,59 @@ panel. The answered/refused Ask Atlas turn states were not re-verified
 in this pass (that requires the mocked-bridge technique from the prior
 visual-polish pass, not exercised here); the language-switching
 mechanism itself is verified end-to-end.
+
+## Accessibility/language consolidation (2026-08-09)
+
+The sidebar `LanguageSelector` added above was a native `<select>` —
+functional, but its open-state popup is OS/webview chrome that cannot
+be constrained or restyled, so on this Linux/webkit2gtk-class target it
+rendered as a large browser-native list that visually dominated the
+window and sat disconnected from the accessibility control a few
+centimeters away. This pass:
+
+- Deleted `ui/src/components/LanguageSelector.tsx` and its sidebar
+  mount point in `AppShell`.
+- Added `LanguagePicker`, a compact listbox inside
+  `AccessibilityWidget.tsx`, replacing the native select with the
+  WAI-ARIA "Collapsible Dropdown Listbox" pattern: a trigger button
+  (`aria-haspopup="listbox"`, `aria-expanded`) opening a `role="listbox"`
+  with `aria-activedescendant` roving selection, full arrow/Home/End/
+  Enter/Escape keyboard support, and a 220px `overflow-y: auto` cap so
+  24 options never dominate the viewport regardless of window size.
+  Interface language now lives inside the same popover as text size,
+  contrast, motion, and focus-ring controls — one accessibility surface,
+  not two disconnected ones.
+- Added real focus management to the outer accessibility popover, which
+  previously had none: `Escape` and outside-click both close it and
+  return focus to the trigger button. The inner language listbox handles
+  its own `Escape`/blur/outside-click and stops the keydown from
+  propagating, so one `Escape` press closes only the innermost open
+  layer instead of collapsing both at once.
+- Fixed the floating trigger/panel's RTL behavior: they used a
+  physical `right` offset, so under `dir="rtl"` they stayed pinned to
+  the same visual edge instead of mirroring — switched to
+  `inset-inline-end`, verified in Arabic to now dock to the left edge.
+- Found and fixed a real RTL bug introduced while building the listbox:
+  an initial `[dir="rtl"] { flex-direction: row-reverse }` rule on each
+  option row double-reversed the layout, because a flex `row` already
+  follows the container's writing direction under `dir="rtl"` (this
+  project's own established doctrine — see the RTL note above — that
+  flexbox rows re-flow correctly without extra rules). Removed the
+  reversal; verified via Playwright that option rows now correctly show
+  the native name at the reading-start (right) side in Arabic.
+
+Verified: `tsc -b`, `eslint .`, `prettier --check .`, and `vite build`
+pass clean. Playwright-verified against the live dev server at 1366×768
+and 1024×720 (narrow-desktop check): opened the accessibility panel and
+language listbox in English, switched via keyboard (arrow keys + Enter)
+through Kiswahili, French, and Arabic, confirmed the whole application
+re-rendered (sidebar, header, hero panel, workflow steps, suggested
+questions, the accessibility panel's own labels) each time, confirmed
+`localStorage` persistence survives a full page navigation, and
+confirmed Amharic (Ethiopic script) and Kirundi (long compound words)
+render without clipping or horizontal overflow at both widths. Did not
+verify OS-level display scaling (100/125/150/200%) directly — a
+`document.documentElement.style.zoom` proxy was attempted and found
+unreliable for this purpose in the headless environment; the 1024px
+narrow-viewport check is the closest available substitute and showed no
+breakage.
