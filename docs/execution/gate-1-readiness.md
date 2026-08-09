@@ -482,3 +482,8 @@ sandbox-tooling attempts at Gap 4's GUI half, a clean full-workspace
 security review with no findings requiring a fix, and a concrete
 unblock path for Gap 3 (the `adtc-profiler` command, pending explicit
 approval to install it).
+
+**Re-verification, same day, no code changed:** `cargo test --workspace`
+re-run once more after this update — **209 passed, 0 failed**, matching
+the count recorded above exactly. No Rust source changed between the
+two runs; this is a confirmation of stability, not a new measurement.
