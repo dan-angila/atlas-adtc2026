@@ -162,3 +162,61 @@ No accounting, inventory, billing, scheduling, patient-management, or
 pharmacy-operations logic exists inside Atlas, and no screen should
 imply a live connection to any other product that isn't actually
 configured.
+
+## Visual polish pass (2026-08-09)
+
+A founder-directed design pass, scoped explicitly to visual polish only
+(typography, spacing, hierarchy, card/badge/button treatment,
+responsive behavior) — no new backend capability, no product-scope
+change, no feature borrowed from any external reference beyond its
+visual language. Two real, root-cause fixes came out of this pass
+rather than surface styling alone:
+
+- **The app's typography had been silently degrading to a generic
+  system-font fallback.** `--font-sans` requested `"Inter"` first, but
+  Inter was never installed as a system font on any machine this was
+  actually tested on (verified via `fc-list`) — every screen had been
+  rendering in whatever fallback the OS provided, not the intended
+  typeface, since the very first frontend commit. Fixed by self-hosting
+  Inter's variable font (`@fontsource-variable/inter`, OFL-1.1
+  licensed, MIT-licensed npm package) as a bundled static asset — no
+  CDN, no runtime network call, ships inside the app bundle exactly
+  like any other static asset. `wght.css` (weight-axis only, all script
+  subsets) is imported once in `main.tsx`; the webview lazy-loads only
+  the subset files a rendered page's `unicode-range` actually needs,
+  which also happens to fit the 24-language multilingual scope (Latin,
+  Cyrillic, Greek, Vietnamese subsets all included) without extra work.
+- **A stale Vite dev-server process was serving an empty CSS string**
+  to the running app — a separate, unrelated infrastructure bug found
+  and fixed the same session (see git history), not a source-code
+  defect.
+
+Design changes in this pass:
+
+- A literal, legible pipeline diagram on Ask Atlas's hero
+  (`.flow-diagram`) replaced the earlier flat row of pills — six
+  numbered, connected steps (Question → Local retrieval → Evidence →
+  Confidence → Local generation → Cited answer) that mirror the real
+  `RagAnswerer` call path, not decorative numbering. This is the
+  screen's signature element: the thing that makes Atlas's "grounded,
+  never fabricated" claim legible at a glance, not merely stated in
+  copy.
+- Type scale widened at the top end (a real display size for the hero
+  headline) with tighter tracking; card radius standardized to 16px;
+  buttons, badges, and empty-state icons gained more considered weight,
+  contrast, and spacing.
+- Product screens gained a max content width (1360px) so panels don't
+  stretch into an awkward, low-density layout on wide/ultrawide
+  monitors — verified at 1366×768 and 1920×1080.
+- Fixed a real responsive regression this pass's own header/brand
+  changes introduced: the header row was too short for its new eyebrow
+  line (clipped text), and "BRIX ATLAS" wrapped across two lines in the
+  narrowed 1366px-breakpoint sidebar — both fixed and reverified.
+
+Verified via real Playwright screenshots against the live Vite dev
+server, including populated-data states (Medical Knowledge, Languages,
+Runtime & Benchmark, Drug Reference, and Ask Atlas's answered/refused
+turns) using a client-side-only mocked Tauri bridge for visual QA
+purposes — this technique never touches the shipped codebase and
+introduces no fabricated-data code path in the product itself; the real
+desktop app still only ever renders real backend data.

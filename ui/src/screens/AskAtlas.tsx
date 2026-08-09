@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 
 import {
   AlertIcon,
@@ -323,9 +323,21 @@ export function AskAtlas({ runtimeStatus }: { runtimeStatus: RuntimeStatusDto | 
               <strong>Local only</strong>
             </div>
           </div>
-          <div className="flow-strip" aria-label="Atlas retrieval and answer flow">
-            {FLOW_STEPS.map((step) => (
-              <span key={step}>{step}</span>
+        </div>
+
+        <div className="hero-flow-row">
+          <span className="hero-flow-label">How Atlas answers</span>
+          <div className="flow-diagram" aria-label="Atlas retrieval and answer flow">
+            {FLOW_STEPS.map((step, index) => (
+              <Fragment key={step}>
+                <div className="flow-step">
+                  <span className="flow-step-marker">{index + 1}</span>
+                  <span className="flow-step-label">{step}</span>
+                </div>
+                {index < FLOW_STEPS.length - 1 && (
+                  <span className="flow-connector" aria-hidden="true" />
+                )}
+              </Fragment>
             ))}
           </div>
         </div>
