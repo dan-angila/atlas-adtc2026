@@ -13,7 +13,7 @@ use std::sync::Arc;
 use atlas_engine::conversation::{QueryOutcome, RefusalReason};
 use atlas_engine::inference::ports::InferenceEngine;
 use atlas_engine::inference::streaming::StreamEvent;
-use atlas_engine::retrieval::RetrievalConfidence;
+use atlas_engine::retrieval::{assess_confidence, KnowledgeRepository, RetrievalConfidence};
 use serde::Serialize;
 
 use crate::runtime::{RuntimeStatus, SharedRuntimeStatus};
@@ -111,6 +111,8 @@ pub struct CitationDto {
     pub document_title: Option<String>,
     /// Heading path within the document.
     pub heading_path: Vec<String>,
+    /// The retrieved evidence text itself, from the stored chunk.
+    pub excerpt: String,
     /// The source's organization/author, if the document record has one.
     pub organization: Option<String>,
     /// The source's jurisdiction, if known.
@@ -131,8 +133,9 @@ pub struct CitationDto {
 pub enum AskAtlasResponseDto {
     /// Evidence was found and generation completed.
     Answered {
-        /// `"weak"` or `"strong"` — never `"no-evidence"` for this
-        /// variant, since `NoEvidence` always produces `Refused`.
+        /// Always `"strong"` today: `NoEvidence` and `Weak` confidence
+        /// both produce `Refused` before generation ever runs, so a
+        /// `Weak` value here would be unreachable.
         confidence: &'static str,
         /// Citations for every chunk used as evidence, built entirely
         /// from retrieval's own stored records.
@@ -150,10 +153,13 @@ pub enum AskAtlasResponseDto {
         /// Real generated token count.
         generated_tokens: u32,
     },
-    /// No evidence was found; refused before calling the generation
-    /// model at all.
+    /// Retrieval didn't clear the confidence bar needed to safely ground
+    /// a healthcare answer; refused before calling the generation model
+    /// at all.
     Refused {
-        /// Always `"no-evidence"` today.
+        /// `"no-evidence"` (nothing retrieved) or `"insufficient-evidence"`
+        /// (retrieved, but too weakly corroborated to safely ground an
+        /// answer).
         reason: &'static str,
     },
     /// Generation started but failed partway through (a real error from
@@ -190,10 +196,10 @@ pub fn ask_atlas(
         let status = state.lock().expect("runtime status mutex poisoned");
         match &*status {
             RuntimeStatus::Loading => {
-                return Err("the Atlas Runtime is still starting up".to_string())
+                return Err("the Atlas Runtime is still starting up".to_string());
             }
             RuntimeStatus::Unavailable { reason } => {
-                return Err(format!("the Atlas Runtime is unavailable: {reason}"))
+                return Err(format!("the Atlas Runtime is unavailable: {reason}"));
             }
             RuntimeStatus::Ready(runtime) => (runtime.answerer.clone(), runtime.thread_count),
         }
@@ -214,6 +220,7 @@ pub fn ask_atlas(
         QueryOutcome::Refused { reason, .. } => {
             let reason = match reason {
                 RefusalReason::NoEvidence => "no-evidence",
+                RefusalReason::InsufficientEvidence => "insufficient-evidence",
             };
             Ok(AskAtlasResponseDto::Refused { reason })
         }
@@ -246,6 +253,7 @@ pub fn ask_atlas(
                         chunk_id: citation.chunk_id.to_string(),
                         document_title: citation.document_title,
                         heading_path: citation.heading_path,
+                        excerpt: truncate_excerpt(&citation.excerpt, 280),
                         organization: citation.organization,
                         jurisdiction: citation.jurisdiction,
                         license: citation.license,
@@ -258,6 +266,22 @@ pub fn ask_atlas(
             })
         }
     }
+}
+
+fn truncate_excerpt(text: &str, max_chars: usize) -> String {
+    let trimmed = text.trim();
+    if trimmed.chars().count() <= max_chars {
+        return trimmed.to_string();
+    }
+
+    let mut end = trimmed.len();
+    for (count, (index, _)) in trimmed.char_indices().enumerate() {
+        if count == max_chars {
+            end = index;
+            break;
+        }
+    }
+    format!("{}...", &trimmed[..end])
 }
 
 /// One document's catalog entry, for the Medical Knowledge screen.
@@ -282,6 +306,70 @@ pub struct DocumentSummaryDto {
     pub license: Option<String>,
     /// The date this document was retrieved, if known.
     pub retrieved_date: Option<String>,
+}
+
+/// One retrieval-backed knowledge search result.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KnowledgeSearchResultDto {
+    /// The source document id.
+    pub document_id: String,
+    /// The source chunk id.
+    pub chunk_id: String,
+    /// The source document title, if known.
+    pub document_title: Option<String>,
+    /// The document format, if known.
+    pub format: Option<String>,
+    /// Heading path within the document.
+    pub heading_path: Vec<String>,
+    /// The retrieved evidence text itself.
+    pub excerpt: String,
+    /// The source organization/author, if known.
+    pub organization: Option<String>,
+    /// The source jurisdiction, if known.
+    pub jurisdiction: Option<String>,
+    /// The verified license, if known.
+    pub license: Option<String>,
+    /// The source retrieval date, if known.
+    pub retrieved_date: Option<String>,
+    /// Whether lexical retrieval matched this chunk.
+    pub matched_lexical: bool,
+    /// Whether semantic retrieval matched this chunk.
+    pub matched_semantic: bool,
+    /// This result's fused retrieval score.
+    pub score: f64,
+}
+
+/// Retrieval-backed search results plus the aggregate confidence level.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KnowledgeSearchResponseDto {
+    /// Retrieval confidence for the returned set.
+    pub confidence: &'static str,
+    /// Real search results from the local knowledge base.
+    pub results: Vec<KnowledgeSearchResultDto>,
+}
+
+/// Model/runtime details the UI can show without inventing metadata.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RuntimeDetailsDto {
+    /// Atlas runs fully offline in the desktop shell.
+    pub offline: bool,
+    /// Whether the generation model is currently loaded.
+    pub generation_model_loaded: bool,
+    /// Whether the embedding model is currently loaded.
+    pub embedding_model_loaded: bool,
+    /// Loaded generation model file name.
+    pub generation_model_name: String,
+    /// Loaded embedding model file name.
+    pub embedding_model_name: String,
+    /// Opened knowledge base file name.
+    pub knowledge_base_name: String,
+    /// Recommended CPU thread count chosen by the Runtime.
+    pub thread_count: i32,
+    /// The inference worker uptime snapshot, in milliseconds.
+    pub worker_uptime_ms: u64,
 }
 
 /// Lists every document in the real knowledge base.
@@ -322,6 +410,92 @@ pub fn list_documents(
         .map_err(|error| format!("failed to list documents: {error}"))
 }
 
+/// Searches the real local knowledge base through the same retrieval stack
+/// Atlas uses before generation.
+///
+/// # Errors
+///
+/// Returns `Err` if the Runtime isn't ready, query embedding fails, or the
+/// knowledge search itself fails.
+#[tauri::command]
+pub fn search_knowledge(
+    state: tauri::State<'_, SharedRuntimeStatus>,
+    query: String,
+) -> Result<KnowledgeSearchResponseDto, String> {
+    let trimmed = query.trim();
+    if trimmed.is_empty() {
+        return Ok(KnowledgeSearchResponseDto {
+            confidence: "no-evidence",
+            results: Vec::new(),
+        });
+    }
+
+    let (inference, knowledge, thread_count): (
+        Arc<dyn InferenceEngine>,
+        Arc<dyn KnowledgeRepository>,
+        i32,
+    ) = {
+        #[allow(clippy::expect_used)]
+        let status = state.lock().expect("runtime status mutex poisoned");
+        match &*status {
+            RuntimeStatus::Loading => {
+                return Err("the Atlas Runtime is still starting up".to_string());
+            }
+            RuntimeStatus::Unavailable { reason } => {
+                return Err(format!("the Atlas Runtime is unavailable: {reason}"));
+            }
+            RuntimeStatus::Ready(runtime) => (
+                runtime.inference.clone(),
+                runtime.knowledge.clone(),
+                runtime.thread_count,
+            ),
+        }
+    };
+
+    let embedding = inference
+        .embed(atlas_engine::inference::ports::EmbedSpec {
+            texts: vec![trimmed.to_string()],
+            thread_count,
+        })
+        .map_err(|error| format!("failed to embed the query: {error}"))?;
+
+    let results = knowledge
+        .search(trimmed, &embedding.vectors[0], 8)
+        .map_err(|error| format!("failed to search the knowledge base: {error}"))?;
+
+    let confidence = confidence_label(assess_confidence(&results));
+
+    let results = results
+        .into_iter()
+        .map(|result| {
+            let document = knowledge
+                .get_document(result.chunk.document_id)
+                .ok()
+                .flatten();
+            KnowledgeSearchResultDto {
+                document_id: result.chunk.document_id.to_string(),
+                chunk_id: result.chunk.id.to_string(),
+                document_title: document.as_ref().map(|doc| doc.title.clone()),
+                format: document.as_ref().map(|doc| format!("{:?}", doc.format)),
+                heading_path: result.chunk.heading_path.clone(),
+                excerpt: truncate_excerpt(&result.chunk.text, 280),
+                organization: document.as_ref().and_then(|doc| doc.organization.clone()),
+                jurisdiction: document.as_ref().and_then(|doc| doc.jurisdiction.clone()),
+                license: document.as_ref().and_then(|doc| doc.license.clone()),
+                retrieved_date: document.as_ref().and_then(|doc| doc.retrieved_date.clone()),
+                matched_lexical: result.matched_lexical,
+                matched_semantic: result.matched_semantic,
+                score: result.score,
+            }
+        })
+        .collect();
+
+    Ok(KnowledgeSearchResponseDto {
+        confidence,
+        results,
+    })
+}
+
 /// A language's real, dated multilingual-generation validation status —
 /// from `docs/evaluation/multilingual-validation-2026-08.md`'s real
 /// Qwen3-4B test, not inferred from registration. Every value here is a
@@ -330,7 +504,10 @@ pub fn list_documents(
 /// to drift.
 fn validation_status(code: &str) -> (&'static str, &'static str) {
     match code {
-        "en" => ("validated", "Native fluency, verified directly by a human reviewer."),
+        "en" => (
+            "validated",
+            "Native fluency, verified directly by a human reviewer.",
+        ),
         "ru" | "zh" => (
             "plausible-fluent",
             "Substantial, coherent, on-topic real text in the requested language, in real testing on 2026-08-08 — not a native-speaker-confirmed validation.",
@@ -408,6 +585,60 @@ pub fn list_languages(
             }
         })
         .collect())
+}
+
+/// Reports the real Runtime's loaded model identities and worker state.
+///
+/// # Errors
+///
+/// Returns `Err` if the Runtime isn't ready or the worker health probe fails.
+#[tauri::command]
+pub fn get_runtime_details(
+    state: tauri::State<'_, SharedRuntimeStatus>,
+) -> Result<RuntimeDetailsDto, String> {
+    let (inference, generation_model_path, embedding_model_path, knowledge_base_path, thread_count) = {
+        #[allow(clippy::expect_used)]
+        let status = state.lock().expect("runtime status mutex poisoned");
+        match &*status {
+            RuntimeStatus::Loading => {
+                return Err("the Atlas Runtime is still starting up".to_string());
+            }
+            RuntimeStatus::Unavailable { reason } => {
+                return Err(format!("the Atlas Runtime is unavailable: {reason}"));
+            }
+            RuntimeStatus::Ready(runtime) => (
+                runtime.inference.clone(),
+                runtime.generation_model_path.clone(),
+                runtime.embedding_model_path.clone(),
+                runtime.knowledge_base_path.clone(),
+                runtime.thread_count,
+            ),
+        }
+    };
+
+    let health = inference
+        .health()
+        .map_err(|error| format!("failed to inspect the inference worker: {error}"))?;
+
+    Ok(RuntimeDetailsDto {
+        offline: true,
+        generation_model_loaded: health.generation_model_loaded,
+        embedding_model_loaded: health.embedding_model_loaded,
+        generation_model_name: generation_model_path
+            .file_name()
+            .map(|name| name.to_string_lossy().into_owned())
+            .unwrap_or_else(|| generation_model_path.to_string_lossy().into_owned()),
+        embedding_model_name: embedding_model_path
+            .file_name()
+            .map(|name| name.to_string_lossy().into_owned())
+            .unwrap_or_else(|| embedding_model_path.to_string_lossy().into_owned()),
+        knowledge_base_name: knowledge_base_path
+            .file_name()
+            .map(|name| name.to_string_lossy().into_owned())
+            .unwrap_or_else(|| knowledge_base_path.to_string_lossy().into_owned()),
+        thread_count,
+        worker_uptime_ms: health.uptime.as_millis() as u64,
+    })
 }
 
 /// Real hardware profile, for the Runtime/Benchmark screen.
@@ -544,6 +775,16 @@ mod tests {
         let json = serde_json::to_value(&response).unwrap();
         assert_eq!(json["outcome"], "refused");
         assert_eq!(json["reason"], "no-evidence");
+    }
+
+    #[test]
+    fn ask_atlas_response_refused_serializes_insufficient_evidence_reason() {
+        let response = AskAtlasResponseDto::Refused {
+            reason: "insufficient-evidence",
+        };
+        let json = serde_json::to_value(&response).unwrap();
+        assert_eq!(json["outcome"], "refused");
+        assert_eq!(json["reason"], "insufficient-evidence");
     }
 
     #[test]

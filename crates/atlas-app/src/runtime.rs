@@ -44,6 +44,12 @@ pub struct AtlasRuntime {
     /// generation works in all of them (see
     /// `docs/evaluation/multilingual-validation-2026-08.md`).
     pub language_registry: LanguageRegistry,
+    /// The generation model file actually loaded into the Runtime.
+    pub generation_model_path: PathBuf,
+    /// The embedding model file actually loaded into the Runtime.
+    pub embedding_model_path: PathBuf,
+    /// The knowledge base file actually opened by the Runtime.
+    pub knowledge_base_path: PathBuf,
     /// CPU thread count used for inference calls.
     pub thread_count: i32,
 }
@@ -153,7 +159,7 @@ fn bootstrap() -> RuntimeStatus {
 
     if let Err(error) = manager.load_model(LoadModelSpec {
         role: ModelRole::Generation,
-        path: generation_model,
+        path: generation_model.clone(),
         context_length: 4096,
         thread_count,
     }) {
@@ -163,7 +169,7 @@ fn bootstrap() -> RuntimeStatus {
     }
     if let Err(error) = manager.load_model(LoadModelSpec {
         role: ModelRole::Embedding,
-        path: embedding_model,
+        path: embedding_model.clone(),
         context_length: 2048,
         thread_count,
     }) {
@@ -211,6 +217,9 @@ fn bootstrap() -> RuntimeStatus {
         inference: manager,
         knowledge,
         language_registry: LanguageRegistry::with_default_packs(),
+        generation_model_path: generation_model,
+        embedding_model_path: embedding_model,
+        knowledge_base_path,
         thread_count,
     })
 }

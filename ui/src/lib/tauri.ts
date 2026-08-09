@@ -21,6 +21,7 @@ export interface CitationDto {
   chunkId: string;
   documentTitle: string | null;
   headingPath: string[];
+  excerpt: string;
   organization: string | null;
   jurisdiction: string | null;
   /** Presence signals "license-verified" — see the Rust doc comment. */
@@ -40,7 +41,7 @@ export type AskAtlasResponseDto =
     }
   | {
       outcome: "refused";
-      reason: "no-evidence";
+      reason: "no-evidence" | "insufficient-evidence";
     }
   | {
       outcome: "failed";
@@ -69,6 +70,41 @@ export interface LanguageDto {
   validationStatus:
     "validated" | "plausible-fluent" | "partial" | "inconclusive" | "garbled" | "failed";
   validationNote: string;
+}
+
+/** Mirrors `atlas_app_lib::commands::KnowledgeSearchResultDto`. */
+export interface KnowledgeSearchResultDto {
+  documentId: string;
+  chunkId: string;
+  documentTitle: string | null;
+  format: string | null;
+  headingPath: string[];
+  excerpt: string;
+  organization: string | null;
+  jurisdiction: string | null;
+  license: string | null;
+  retrievedDate: string | null;
+  matchedLexical: boolean;
+  matchedSemantic: boolean;
+  score: number;
+}
+
+/** Mirrors `atlas_app_lib::commands::KnowledgeSearchResponseDto`. */
+export interface KnowledgeSearchResponseDto {
+  confidence: "no-evidence" | "weak" | "strong";
+  results: KnowledgeSearchResultDto[];
+}
+
+/** Mirrors `atlas_app_lib::commands::RuntimeDetailsDto`. */
+export interface RuntimeDetailsDto {
+  offline: boolean;
+  generationModelLoaded: boolean;
+  embeddingModelLoaded: boolean;
+  generationModelName: string;
+  embeddingModelName: string;
+  knowledgeBaseName: string;
+  threadCount: number;
+  workerUptimeMs: number;
 }
 
 /** Mirrors `atlas_app_lib::commands::HardwareDto`. */
@@ -120,6 +156,9 @@ export const atlas = {
   getRuntimeStatus: () => safeInvoke<RuntimeStatusDto>("get_runtime_status"),
   askAtlas: (query: string) => safeInvoke<AskAtlasResponseDto>("ask_atlas", { query }),
   listDocuments: () => safeInvoke<DocumentSummaryDto[]>("list_documents"),
+  searchKnowledge: (query: string) =>
+    safeInvoke<KnowledgeSearchResponseDto>("search_knowledge", { query }),
   listLanguages: () => safeInvoke<LanguageDto[]>("list_languages"),
+  getRuntimeDetails: () => safeInvoke<RuntimeDetailsDto>("get_runtime_details"),
   getBenchmark: () => safeInvoke<BenchmarkReportDto>("get_benchmark"),
 };

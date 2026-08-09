@@ -146,12 +146,19 @@ The screen, its route, and its sidebar nav group are deleted from
 
 ## Explicitly out of scope
 
-No new backend capability, no new Tauri command, no change to the RAG
-pipeline, model, or multilingual validation. The information
-architecture is five real screens: Ask Atlas, Medical Knowledge, Drug
-Reference, Languages, Runtime & Benchmark. "Drug Reference" reuses the
-exact same `list_documents` data and component as Medical Knowledge (a
-labeling/framing difference, not a new data source), consistent with
-"never fabricate a document." No accounting, inventory, billing, or ERP
-logic exists inside Atlas, and no screen should imply a live connection
-to any other product that isn't actually configured.
+No replacement of the RAG pipeline, model loading, multilingual
+validation, or benchmark engine. The frontend now consumes a slightly
+richer read-only Tauri surface so the product can present real runtime
+identity and retrieval-backed evidence more clearly:
+
+- `ask_atlas` for grounded answers and refusal
+- `list_documents` for the Medical Knowledge catalog
+- `search_knowledge` for retrieval-backed Drug Reference evidence search
+- `list_languages` for the language registry and measured validation
+- `get_runtime_status`, `get_runtime_details`, and `get_benchmark` for
+  runtime and benchmark truthfulness
+
+No accounting, inventory, billing, scheduling, patient-management, or
+pharmacy-operations logic exists inside Atlas, and no screen should
+imply a live connection to any other product that isn't actually
+configured.

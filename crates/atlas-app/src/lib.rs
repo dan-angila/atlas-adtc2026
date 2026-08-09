@@ -91,7 +91,9 @@ pub fn run() {
             commands::get_runtime_status,
             commands::ask_atlas,
             commands::list_documents,
+            commands::search_knowledge,
             commands::list_languages,
+            commands::get_runtime_details,
             commands::get_benchmark,
         ])
         .run(tauri::generate_context!())
