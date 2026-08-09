@@ -39,34 +39,40 @@ should inform, not decide.
 
 ### Gap 1 — Retrieval confidence doesn't guarantee refusal at real corpus scale (safety-relevant)
 
-**Partially fixed 2026-08-09 — the false-confidence half; the
-hard-refusal-rate half remains open.** `RetrievalConfidence::NoEvidence`
-— the only outcome that hard-refuses — still essentially never triggers
-once a corpus has enough real vocabulary overlap with a query, and that
-part is unchanged. What real testing also found: a drug-interaction/
-treatment-protocol question could reach falsely *`Strong`* confidence
-(not just an answered hedge) by sharing one or two topic-generic words
-("treatment", "recommended treatment") with an unrelated document — a
-generic-verb version of this (sharing "take") was found and fixed
-earlier by stopwording it, but "treatment" can't be stopworded without
-breaking legitimate treatment questions. Fixed instead by requiring most
-(≥75%) of a query's content words to actually appear in a chunk before
-it counts as genuinely lexically corroborated (`sqlite_store.rs`'s
+**Closed 2026-08-09, in two steps.** Step one fixed the false-confidence
+half: real testing found a drug-interaction/treatment-protocol question
+could reach falsely *`Strong`* confidence (not just an answered hedge)
+by sharing one or two topic-generic words ("treatment", "recommended
+treatment") with an unrelated document — a generic-verb version of this
+(sharing "take") was found and fixed earlier by stopwording it, but
+"treatment" can't be stopworded without breaking legitimate treatment
+questions. Fixed instead by requiring most (≥75%) of a query's content
+words to actually appear in a chunk before it counts as genuinely
+lexically corroborated (`sqlite_store.rs`'s
 `MIN_LEXICAL_OVERLAP_FRACTION`) — measured with a clean before/after run
 of `validate_healthcare_corpus_safety.rs` against the real corpus: the
 "fractured femur" gap scenario dropped from false `Strong` to honest
 `Weak`, with the two in-corpus scenarios unaffected.
 
-**Concretely, updated:** of the 8-document corpus's 3 known-unsupported
-test questions, 0 are hard-refused (unchanged — this is the part still
-open) and 0 now reach false `Strong` confidence (was 1 of 3; all 3 are
-now `Weak`, an honest hedge). Whether `Weak`-confidence answers should
-also hard-refuse — trading recall for safety — is a deliberate,
-documented product decision (`Weak` still generates an answer by
-design), not something this fix changed; that remains the real, open,
-founder-level question for closing this gap the rest of the way. See
-`docs/design/rag-pipeline.md`'s retrieval-confidence section for the
-full before/after measurement.
+Step two closed the remaining, previously-open founder-level question:
+whether `Weak`-confidence answers should hard-refuse instead of
+generating a hedged answer. `RagAnswerer::answer`
+(`crates/atlas-engine/src/conversation/rag.rs`) now refuses on both
+`RetrievalConfidence::NoEvidence` and `RetrievalConfidence::Weak`,
+trading recall for safety — consistent with this project's existing
+"refusing is safer than guessing" stance for `NoEvidence`. A new
+`RefusalReason::InsufficientEvidence` distinguishes a `Weak` refusal from
+a `NoEvidence` one at the API level (`ask_atlas`'s `reason` field:
+`"no-evidence"` vs `"insufficient-evidence"`), and a regression test
+(`weak_evidence_refuses_without_ever_calling_generate`) locks in that a
+`Weak`-confidence query never reaches the generation model.
+
+**Concretely:** of the 8-document corpus's 3 known-unsupported test
+questions, all 3 are now hard-refused (previously 0) — the "fractured
+femur" gap scenario that was fixed down to an honest `Weak` hedge in
+step one now refuses outright in step two rather than generating any
+answer text. See `docs/design/rag-pipeline.md`'s retrieval-confidence
+section for the full before/after measurement.
 
 ### Gap 2 — Multilingual capability is real but narrow
 

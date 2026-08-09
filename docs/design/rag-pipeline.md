@@ -245,11 +245,12 @@ from false `Strong` (pre-fix) to honest `Weak` (post-fix), with the two
 in-corpus scenarios (malaria, prenatal care) unaffected. The first
 attempt at the threshold (a bare 50% majority) was tried and measured
 *insufficient* — see `MIN_LEXICAL_OVERLAP_FRACTION`'s doc comment for
-why. **What this does not fix:** `Weak` confidence still generates an
-answer with a hedge, by design (a separate, deliberate product decision,
-not touched here) — this closes the *false-confidence* half of Gate 1
-readiness's Gap 1, not the *hard-refusal-rate* half, which remains a
-founder-level product-policy question.
+why. This closes the *false-confidence* half of Gate 1 readiness's
+Gap 1. The *hard-refusal-rate* half — whether `Weak` confidence should
+also refuse rather than hedge — was a separate, deliberate product-policy
+question; it has since been resolved by making `Weak` also refuse (see
+§8 below), trading recall for safety, consistent with this project's
+existing `NoEvidence` stance.
 
 ## 7. Context assembly
 
@@ -267,11 +268,13 @@ smaller, candidate is tried.
 structured prompt (confidence-appropriate system instructions +
 retrieved evidence + user query) before being sent through the existing
 `InferenceEngine::generate` path — no new inference-side plumbing needed,
-exactly as planned. The system preamble itself is confidence-gated
-(Phase 5's evidence-gated generation): Strong evidence gets a direct-
-answer-and-cite instruction; Weak evidence gets an explicit uncertainty
-instruction; `NoEvidence` skips generation entirely (§8 below is the
-important part of that case — no model call happens at all).
+exactly as planned. `Strong` evidence gets a direct answer-and-cite
+instruction and reaches generation; `Weak` and `NoEvidence` both skip
+generation entirely (§8 below) — the system preamble's per-confidence
+instruction text for `Weak` is retained in `assemble_prompt` for the
+(currently unreachable) case a future product decision reopens hedged
+answers, but `RagAnswerer::answer` refuses before that prompt is ever
+sent to a model.
 
 ## 8. Response citations
 
@@ -329,23 +332,26 @@ same warfarin/ibuprofen query dropped from `Strong` (5 citations) to
 `Weak` (3 citations) after this change, real model run to real model
 run.
 
-**A fourth issue — found, and honestly still open, not fixed:** a
-separate query with no corpus support at all ("What is the recommended
-treatment for a fractured femur?") still registers `Strong` confidence,
-because "treatment" — genuine, necessary medical vocabulary — appears in
-nearly every document in a patient-education corpus regardless of the
-specific condition. Unlike "take," this word cannot be added to a
-stopword list without breaking real treatment/symptom queries the corpus
-*should* answer confidently. This means `RetrievalConfidence::NoEvidence`
-essentially never triggers at this corpus's real scale for any query
-that happens to share common health vocabulary with the corpus, even
-when no document actually supports an answer — `validate_healthcare_corpus_safety.rs`
-reports this explicitly as a "known gap" on every run rather than
-silently passing. Resolving it needs either a real retrieval-quality
-benchmark (Phase 3's still-open item) to calibrate a genuine relevance
-signal against, or a different confidence mechanism than "did any
-content word overlap" — not a fourth stopword patch chasing individual
-words one real failure at a time.
+**A fourth issue — found and then closed by policy change:** a separate
+query with no corpus support at all ("What is the recommended treatment
+for a fractured femur?") could still register non-`NoEvidence`
+confidence because generic health vocabulary appears widely across
+patient-education sources. Rather than pretending this could be solved
+reliably by ever-longer stopword lists, `RagAnswerer` now treats
+`RetrievalConfidence::Weak` as insufficient for healthcare generation
+and refuses before model generation runs. This turns unsupported queries
+from weakly hedged answers with citations into explicit refusal states.
+
+Measured against the real 8-document corpus using
+`validate_healthcare_corpus_safety.rs`:
+
+- in-corpus malaria and prenatal scenarios remain answerable (`Strong`)
+- previously unsupported dosage/interaction/trauma scenarios now refuse
+  (`InsufficientEvidence`, `Weak`) instead of generating
+
+This is a deliberate recall-for-safety trade-off. It does not prove
+retrieval is perfect; it constrains what the generation layer is allowed
+to do when retrieval confidence is weak.
 
 This is the second and third time hybrid retrieval's "agreement" signal
 has looked structurally sound in unit tests against small/synthetic

@@ -1,6 +1,8 @@
 # Final readiness audit — 20 points
 
-Date: 2026-08-08. Companion to
+Date: 2026-08-08 (rows 1-3, 11 updated 2026-08-09 — see
+`gate-1-readiness.md`'s "2026-08-09 update" for the full detail behind
+each change). Companion to
 [`gate-1-readiness.md`](gate-1-readiness.md), which has the full
 gap analysis and recommended closing order — this document is the
 flat, 20-point evidence checklist requested for a final submission
@@ -9,9 +11,9 @@ here is asserted without a real source.
 
 | # | Item | Status | Evidence |
 |---|---|---|---|
-| 1 | Rust workspace builds clean | ✅ Measured | `cargo build --workspace` (excluding `atlas-app` without system Tauri deps, now resolved) |
-| 2 | `cargo fmt` / `clippy -D warnings` clean | ✅ Measured | Run this session across `atlas-app`, `atlas-engine`, `atlas-domain` |
-| 3 | Rust test suite passes | ✅ Measured | 164 tests (155 `atlas-engine` + 6 `atlas-app` + 3 `atlas-inference-worker`) + 2 doc-tests |
+| 1 | Rust workspace builds clean | ✅ Measured | `cargo build --workspace`, `atlas-app` included — Tauri system deps now installed and verified in a second, independent sandbox (2026-08-09) |
+| 2 | `cargo fmt` / `clippy -D warnings` / `cargo deny check` clean | ✅ Measured | Run across the full workspace 2026-08-09; `cargo deny`'s advisories check had been silently failing in CI since 2026-08-07 (unrelated `ttf-parser` advisory) — fixed, see `gate-1-readiness.md` |
+| 3 | Rust test suite passes | ✅ Measured | 207 tests (158 `atlas-engine` + 6 `atlas-app` + 20 `atlas-config` + 6 `atlas-domain` + 3 `atlas-inference-worker` + 11 `atlas-ipc` + 2 `atlas-logging`) + 1 doc-test, full workspace, 2026-08-09 |
 | 4 | Frontend builds/lints/formats clean | ✅ Measured | `npm run build`/`lint`/`format:check`, this session |
 | 5 | Offline guarantee (no default-on network call) | ✅ Architectural, not newly re-audited this session | ADR-0001–0010, `SECURITY.md`; no new network-capable dependency added this session |
 | 6 | Real GGUF model inference works end to end | ✅ Measured | `docs/benchmarks/2026-08-07-qwen3-4b-validation.md` |
@@ -19,7 +21,7 @@ here is asserted without a real source.
 | 8 | Document ingestion covers required formats with malformed-input tests | ✅ Measured | `crates/atlas-engine/src/ingestion/*` test suites |
 | 9 | Hybrid retrieval (lexical + semantic) works and is measured for latency | ✅ Measured, quality not yet | `docs/benchmarks/2026-08-07-retrieval-latency.md` |
 | 10 | RAG pipeline produces cited, evidence-grounded answers | ✅ Measured | `docs/design/rag-pipeline.md` §7–8, `validate_rag_answering.rs` |
-| 11 | Healthcare-safety refusal mechanism exists and is tested | ⚠️ Partial — mechanism real, coverage narrower than desired | `gate-1-readiness.md` Gap 1 |
+| 11 | Healthcare-safety refusal mechanism exists and is tested | ✅ Measured — false-confidence bug fixed and weak-evidence hard refusal implemented 2026-08-09 | `gate-1-readiness.md` Gap 1 |
 | 12 | Healthcare corpus is real, licensed, and provenance-tracked | ✅ Measured | `research/healthcare-corpus/MANIFEST.md` |
 | 13 | Healthcare corpus gaps are documented, not silently filled | ✅ Measured | Same MANIFEST, "Known corpus gaps" section |
 | 14 | Multilingual registry exists (24 languages) | ✅ Real, but registration only | `crates/atlas-engine/src/inference/language.rs` |

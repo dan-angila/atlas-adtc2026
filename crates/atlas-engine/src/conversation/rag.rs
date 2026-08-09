@@ -63,6 +63,9 @@ pub struct Citation {
     /// closest thing to a page number this project's formats reliably
     /// offer; see [`atlas_domain::HeadingPath`].
     pub heading_path: HeadingPath,
+    /// The retrieved evidence text itself, carried directly from the
+    /// chunk that retrieval selected.
+    pub excerpt: String,
     /// The source's organization/author, if the document record carries
     /// one — see [`atlas_domain::DocumentRecord::organization`].
     pub organization: Option<String>,
@@ -88,6 +91,9 @@ pub enum RefusalReason {
     /// judgment, per this project's healthcare-safety stance that
     /// refusing is safer than guessing.
     NoEvidence,
+    /// Retrieval found only weakly corroborated support, not enough to
+    /// safely ground a healthcare answer.
+    InsufficientEvidence,
 }
 
 /// The result of [`RagAnswerer::answer`].
@@ -107,14 +113,12 @@ pub enum QueryOutcome {
         /// The streaming generation response.
         stream: TokenStream,
     },
-    /// No evidence was found; refused before ever calling the generation
-    /// model.
+    /// Insufficient evidence was found; refused before ever calling the
+    /// generation model.
     Refused {
         /// Why generation was skipped.
         reason: RefusalReason,
-        /// Always [`RetrievalConfidence::NoEvidence`] today — carried
-        /// through explicitly so a caller doesn't have to infer it from
-        /// `reason` alone if this enum grows more refusal reasons later.
+        /// The retrieval-confidence state that caused refusal.
         confidence: RetrievalConfidence,
     },
 }
@@ -195,9 +199,16 @@ impl RagAnswerer {
 
         let confidence = assess_confidence(&results);
 
-        if matches!(confidence, RetrievalConfidence::NoEvidence) {
+        if matches!(
+            confidence,
+            RetrievalConfidence::NoEvidence | RetrievalConfidence::Weak
+        ) {
             return Ok(QueryOutcome::Refused {
-                reason: RefusalReason::NoEvidence,
+                reason: match confidence {
+                    RetrievalConfidence::NoEvidence => RefusalReason::NoEvidence,
+                    RetrievalConfidence::Weak => RefusalReason::InsufficientEvidence,
+                    RetrievalConfidence::Strong => unreachable!("Strong evidence must not refuse"),
+                },
                 confidence,
             });
         }
@@ -239,6 +250,7 @@ impl RagAnswerer {
             chunk_id: result.chunk.id,
             document_title: document.as_ref().map(|document| document.title.clone()),
             heading_path: result.chunk.heading_path.clone(),
+            excerpt: result.chunk.text.clone(),
             organization: document
                 .as_ref()
                 .and_then(|document| document.organization.clone()),
@@ -325,10 +337,12 @@ fn assemble_prompt(
 mod tests {
     use super::*;
     use atlas_domain::{ChunkRecord, DocumentFormat, DocumentRecord, Id};
+    use std::sync::Mutex;
 
     use crate::inference::ports::testing::FakeInferenceEngine;
     use crate::inference::ports::{LoadModelSpec, ModelRole};
     use crate::retrieval::ports::testing::InMemoryKnowledgeRepository;
+    use crate::retrieval::ports::{KnowledgeRepository, RetrievalError};
 
     // Must match `word_bucket_embedding`'s output width.
     const DIMENSION: usize = 128;
@@ -383,6 +397,69 @@ mod tests {
         (inference, knowledge, answerer)
     }
 
+    struct FixedSearchKnowledgeRepository {
+        results: Mutex<Vec<RetrievedChunk>>,
+        documents: Mutex<Vec<DocumentRecord>>,
+    }
+
+    impl FixedSearchKnowledgeRepository {
+        fn new(results: Vec<RetrievedChunk>, documents: Vec<DocumentRecord>) -> Self {
+            Self {
+                results: Mutex::new(results),
+                documents: Mutex::new(documents),
+            }
+        }
+    }
+
+    #[allow(clippy::expect_used)]
+    impl KnowledgeRepository for FixedSearchKnowledgeRepository {
+        fn store_document(&self, document: &DocumentRecord) -> Result<(), RetrievalError> {
+            self.documents
+                .lock()
+                .expect("documents mutex poisoned")
+                .push(document.clone());
+            Ok(())
+        }
+
+        fn store_chunk(
+            &self,
+            _chunk: &ChunkRecord,
+            _embedding: &[f32],
+        ) -> Result<(), RetrievalError> {
+            Ok(())
+        }
+
+        fn search(
+            &self,
+            _query_text: &str,
+            _query_embedding: &[f32],
+            _limit: usize,
+        ) -> Result<Vec<RetrievedChunk>, RetrievalError> {
+            Ok(self.results.lock().expect("results mutex poisoned").clone())
+        }
+
+        fn get_document(
+            &self,
+            document_id: atlas_domain::DocumentId,
+        ) -> Result<Option<DocumentRecord>, RetrievalError> {
+            Ok(self
+                .documents
+                .lock()
+                .expect("documents mutex poisoned")
+                .iter()
+                .find(|document| document.id == document_id)
+                .cloned())
+        }
+
+        fn list_documents(&self) -> Result<Vec<DocumentRecord>, RetrievalError> {
+            Ok(self
+                .documents
+                .lock()
+                .expect("documents mutex poisoned")
+                .clone())
+        }
+    }
+
     #[test]
     fn no_evidence_refuses_without_ever_calling_generate() {
         // Only the embedding model is loaded, not generation — if
@@ -407,6 +484,75 @@ mod tests {
                 assert_eq!(confidence, RetrievalConfidence::NoEvidence);
             }
             QueryOutcome::Answered { .. } => panic!("expected a refusal, got an answer"),
+        }
+    }
+
+    #[test]
+    fn weak_evidence_refuses_without_ever_calling_generate() {
+        let inference = Arc::new(FakeInferenceEngine::new(vec![
+            "should never be produced".to_string()
+        ]));
+        inference
+            .load_model(LoadModelSpec {
+                role: ModelRole::Embedding,
+                path: "/fake/embedding.gguf".into(),
+                context_length: 2048,
+                thread_count: 4,
+            })
+            .unwrap();
+
+        let document = DocumentRecord {
+            id: Id::new(),
+            title: "Generic Medication Guidance".to_string(),
+            source_path: "/docs/generic-guidance.md".into(),
+            format: DocumentFormat::Markdown,
+            checksum: "b".repeat(64),
+            organization: Some("WHO".to_string()),
+            source_url: None,
+            jurisdiction: Some("Global".to_string()),
+            license: Some("CC BY-NC-SA 3.0 IGO".to_string()),
+            retrieved_date: Some("2026-08-09".to_string()),
+        };
+        let weak_chunk = ChunkRecord {
+            id: Id::new(),
+            document_id: document.id,
+            text: "Take your medication as prescribed and tell your clinician about side effects."
+                .to_string(),
+            heading_path: vec!["General Guidance".to_string()],
+            start_byte: 0,
+            end_byte: 74,
+        };
+        let knowledge = Arc::new(FixedSearchKnowledgeRepository::new(
+            vec![RetrievedChunk {
+                chunk: weak_chunk,
+                score: 1.0,
+                matched_lexical: true,
+                matched_semantic: false,
+            }],
+            vec![document],
+        ));
+        let answerer = RagAnswerer::new(
+            inference.clone(),
+            knowledge,
+            ContextAssemblyConfig::default(),
+        );
+
+        let outcome = answerer
+            .answer(
+                "Is it safe to take warfarin together with ibuprofen?",
+                4,
+                InferenceParams::default(),
+            )
+            .expect("weak evidence should refuse, not error");
+
+        match outcome {
+            QueryOutcome::Refused { reason, confidence } => {
+                assert_eq!(reason, RefusalReason::InsufficientEvidence);
+                assert_eq!(confidence, RetrievalConfidence::Weak);
+            }
+            QueryOutcome::Answered { .. } => {
+                panic!("weakly corroborated healthcare evidence must not reach generation")
+            }
         }
     }
 

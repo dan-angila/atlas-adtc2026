@@ -1,19 +1,10 @@
 //! Real end-to-end validation of the healthcare corpus built by
 //! `build_healthcare_corpus` against real components: confirms in-corpus
 //! questions get answered with citations to a genuinely relevant real
-//! MedlinePlus source, and reports — honestly, not asserting a result
-//! this pipeline doesn't yet guarantee — how "gap" questions (dosage,
-//! drug interactions, trauma; none of which any of the 8 real documents
-//! cover) actually behave. `RagAnswerer` only hard-refuses on
-//! `RetrievalConfidence::NoEvidence`; Weak and Strong both still
-//! generate an answer by design, so a gap question getting a hedged or
-//! even falsely-confident answer citing an unrelated real document is a
-//! known, reported limitation here, not something this script pretends
-//! is already solved. See `docs/design/rag-pipeline.md`'s third
-//! retrieval-confidence finding for the real bug this found and fixed
-//! (a shared generic verb), and the structural one it found and has
-//! not fixed (shared topic-generic medical vocabulary like
-//! "treatment").
+//! MedlinePlus source, and enforces that unsupported "gap" questions
+//! (dosage, drug interactions, trauma; none of which any of the 8 real
+//! documents cover) are refused rather than answered with weakly
+//! corroborated evidence.
 //!
 //! Requires the corpus to already exist (`cargo run -p atlas-engine
 //! --example build_healthcare_corpus -- ...` first).
@@ -147,20 +138,10 @@ fn main() {
 
     let answerer = RagAnswerer::new(manager, knowledge, ContextAssemblyConfig::default());
 
-    // `QueryOutcome::Refused` (RetrievalConfidence::NoEvidence) is the
-    // *only* outcome this pipeline treats as a hard refusal — Weak and
-    // Strong both still generate a hedged/confident answer by design
-    // (`docs/design/rag-pipeline.md` §7). So a "gap" scenario (no
-    // relevant document exists in the corpus) getting an answer instead
-    // of a refusal is not automatically a regression — it's a known,
-    // real limitation of the current confidence signal at real corpus
-    // scale, worth reporting clearly but not worth a hard failure exit
-    // for every run until a better signal exists. A regression on an
-    // *in-corpus* scenario (a real answerable question citing zero
-    // relevant sources, or being refused outright) is a hard failure:
-    // that would be new breakage, not a known, already-documented gap.
+    // Gap scenarios should now refuse on weakly corroborated evidence,
+    // while in-corpus scenarios remain answerable with relevant
+    // citations.
     let mut regressions = Vec::new();
-    let mut known_gaps = Vec::new();
     for scenario in SCENARIOS {
         println!("\n== {} ==\nquery: {}", scenario.label, scenario.query);
         let outcome = answerer
@@ -194,12 +175,9 @@ fn main() {
                         .is_some_and(|title| scenario.relevant_document_titles.contains(&title))
                 });
                 if scenario.relevant_document_titles.is_empty() {
-                    known_gaps.push(format!(
-                        "{}: answered (confidence={confidence:?}) with {} citation(s), none \
-                         of which can be genuinely relevant — no document in this corpus covers \
-                         this topic. Expected under the current confidence-gating design (only \
-                         NoEvidence refuses outright); see docs/design/rag-pipeline.md's third \
-                         retrieval-confidence finding.",
+                    regressions.push(format!(
+                        "{}: answered (confidence={confidence:?}) with {} citation(s), but unsupported \
+                         healthcare scenarios must now refuse under the weak-evidence gate",
                         scenario.label,
                         citations.len()
                     ));
@@ -218,7 +196,9 @@ fn main() {
             }
             QueryOutcome::Refused { reason, confidence } => {
                 println!("-> Refused (reason={reason:?}, confidence={confidence:?})");
-                if !scenario.relevant_document_titles.is_empty() {
+                if scenario.relevant_document_titles.is_empty() {
+                    // Expected path for unsupported queries.
+                } else {
                     regressions.push(format!(
                         "{}: refused, but this is a real in-corpus question that should be \
                          answerable",
@@ -239,22 +219,8 @@ fn main() {
         }
     }
 
-    if !known_gaps.is_empty() {
-        println!(
-            "\n{} known gap(s) (not a failure, see above):",
-            known_gaps.len()
-        );
-        for gap in &known_gaps {
-            println!("  - {gap}");
-        }
-    }
-
     if regressions.is_empty() {
-        println!(
-            "\nNo regressions across {} scenario(s) ({} known gap(s) unchanged).",
-            SCENARIOS.len(),
-            known_gaps.len()
-        );
+        println!("\nNo regressions across {} scenario(s).", SCENARIOS.len());
     } else {
         eprintln!("\n{} regression(s):", regressions.len());
         for regression in &regressions {
