@@ -16,7 +16,7 @@ posture. The underlying engine itself remains domain-agnostic — a
 clinical guideline PDF is parsed exactly like any other PDF.
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![Status: Foundation](https://img.shields.io/badge/status-engineering%20foundation-orange)](docs/baseline/engineering-baseline.md)
+[![Status: Pre-submission](https://img.shields.io/badge/status-pre--submission%20(not%20yet%20ready)-orange)](docs/execution/gate-1-readiness.md)
 
 ---
 
@@ -63,20 +63,38 @@ capability.
 
 ## Current status
 
-**The Atlas Runtime is real and validated against a live model.** The
-Rust workspace, Tauri desktop shell, React front end, and the full
-inference Runtime (model loading, real llama.cpp generation, GGUF
-inspection, RAM-tier detection, language registry, benchmarking) compile,
-run, and are backed by 142 passing tests (excluding `atlas-app`, which
-needs a full desktop-build environment) plus a real thin-vertical-slice
-Document Ingestion pipeline (Markdown, CSV, DOCX) — with **no PDF
-parsing, retrieval, or enterprise-workflow implementation yet**, by
-design.
-See [`docs/baseline/engineering-baseline.md`](docs/baseline/engineering-baseline.md)
-for a five-minute orientation, [`docs/architecture/runtime-architecture.md`](docs/architecture/runtime-architecture.md)
-for the Runtime's design, and
-[`docs/roadmap/development-roadmap.md`](docs/roadmap/development-roadmap.md)
-for what's next.
+**The full pipeline is real, wired end to end, and validated against
+live models — not a prototype of one piece.** Document ingestion
+(Markdown, CSV, DOCX, PDF, each with malformed-input test coverage),
+hybrid lexical+semantic retrieval (SQLite FTS5 + `sqlite-vec`), a
+structural retrieval-confidence signal, evidence-grounded generation
+with real citations, and a safety-refusal path (hard-refuses rather
+than guessing when local evidence doesn't corroborate an answer) all
+run against real GGUF models via real llama.cpp inference — no mocked
+inference anywhere in the engine. The Tauri desktop shell wires all of
+this to a five-screen React front end (Ask Atlas, Medical Knowledge,
+Drug Reference, Languages, Runtime & Benchmark) with a real, translated
+24-language interface and a working accessibility layer. 209 tests pass
+across the full Rust workspace (`cargo test --workspace`, including
+`atlas-app`); `cargo clippy -D warnings` and `cargo deny check` are
+clean.
+
+**What is not yet true**, stated as plainly as the above: the loaded
+generation model does not reliably produce fluent text in most of the
+24 registered languages (see
+[`docs/evaluation/multilingual-validation-2026-08.md`](docs/evaluation/multilingual-validation-2026-08.md)
+— English, Russian, and Chinese are the languages with a validated
+result; most others, especially the Africa-pack languages, are not);
+no benchmark in this repository has yet run on the competition's actual
+8GB-RAM reference hardware class (every number so far is from a more
+capable development machine); and a full, live, clicked-through GUI
+demo session has not been captured in this repository's own sandboxes
+to date, though the real backend has been independently confirmed to
+reach a ready state on repeated default launches. See
+[`docs/execution/gate-1-readiness.md`](docs/execution/gate-1-readiness.md)
+for the complete, current gap list with evidence, and
+[`docs/baseline/engineering-baseline.md`](docs/baseline/engineering-baseline.md)
+for a five-minute orientation.
 
 ## Architecture, in brief
 
@@ -150,13 +168,14 @@ atlas-adtc2026/
 ```
 
 The Atlas Runtime (`atlas-engine`'s `inference` module) is real and
-validated against a live model — see
+validated against live models — see
 [`docs/architecture/runtime-architecture.md`](docs/architecture/runtime-architecture.md).
-Document Ingestion has a real, thin vertical slice (Markdown, CSV, DOCX
-parsing + a placeholder-tuned chunker); PDF, retrieval, conversation, and
-reporting remain documented stubs, and `atlas-app` exposes exactly one
-infrastructure command (`get_app_info`) — it is not yet wired to the
-Runtime. See
+Document Ingestion, Knowledge Retrieval, and the RAG conversation
+pipeline are real and wired together (`docs/design/rag-pipeline.md`);
+`atlas-app` exposes eight real Tauri commands covering runtime status,
+querying, document/language listing, and benchmarking. Structured
+report generation and business-writing (the Reporting & Authoring
+bounded context) have not started. See
 [`docs/roadmap/development-roadmap.md`](docs/roadmap/development-roadmap.md)
 for what's next.
 
@@ -185,7 +204,23 @@ cargo test --workspace
 
 # Run the desktop app in development (requires cargo install tauri-cli --version "^2")
 cd crates/atlas-app && cargo tauri dev
+
+# Or, without installing the Tauri CLI: build the front end once, then run
+# the binary directly (uses ui/dist per tauri.conf.json's frontendDist)
+cd ui && npm install && npm run build && cd ..
+cargo run -p atlas-app
 ```
+
+Either way, place the two required GGUF models at
+`models/Qwen3-4B-Q4_K_M.gguf` and
+`models/nomic-embed-text-v1.5-Q8_0.gguf` (or set
+`ATLAS_GENERATION_MODEL`/`ATLAS_EMBEDDING_MODEL`), and build the
+healthcare knowledge base first (`cargo run -p atlas-engine --example
+build_healthcare_corpus`, or set `ATLAS_KNOWLEDGE_BASE`) — otherwise the
+app starts honestly in a "Runtime unavailable" state rather than
+pretending to be ready. Model loading is real work and takes tens of
+seconds on modest hardware; see
+[`docs/benchmarks/2026-08-07-qwen3-4b-validation.md`](docs/benchmarks/2026-08-07-qwen3-4b-validation.md).
 
 Full toolchain requirements (including Linux system libraries for Tauri)
 are in [`CONTRIBUTING.md`](CONTRIBUTING.md#development-environment). To
@@ -205,8 +240,9 @@ get oriented as a contributor beyond just building it:
 | Contribute | [`CONTRIBUTING.md`](CONTRIBUTING.md), [`docs/engineering-standards.md`](docs/engineering-standards.md) |
 | Know when a PR is actually done | [`docs/execution/definition-of-done.md`](docs/execution/definition-of-done.md) |
 | Report a security issue | [`SECURITY.md`](SECURITY.md) |
-| See measured performance | [`docs/benchmarks/`](docs/benchmarks/) *(empty until Phase 3)* |
-| See measured quality/accuracy | [`docs/evaluation/`](docs/evaluation/) *(empty until Phase 3/7)* |
+| See measured performance | [`docs/benchmarks/`](docs/benchmarks/) |
+| See measured quality/accuracy | [`docs/evaluation/`](docs/evaluation/) |
+| See the current, evidence-linked readiness gap list | [`docs/execution/gate-1-readiness.md`](docs/execution/gate-1-readiness.md) |
 
 ## License
 

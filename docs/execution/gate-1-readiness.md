@@ -1,6 +1,8 @@
 # ADTC 2026 Gate 1 readiness assessment
 
-Date: 2026-08-08 (updated 2026-08-09 — see "2026-08-09 update" below)
+Date: 2026-08-08 (updated 2026-08-09 — see "2026-08-09 update" below;
+further updated later the same day — see "2026-08-09, second update"
+at the end)
 
 ## What this document is
 
@@ -233,3 +235,214 @@ No verdict change: **still NOT YET READY**, for the same reasons (Gaps
 one process gap (CI was silently red) and makes two real product
 improvements (removes a scope-creep risk, adds real provenance), but
 does not materially change the readiness math.
+
+## 2026-08-09, second update
+
+A later session the same day, tasked with a full final-submission-
+readiness pass. Frontend work (interface-language consolidation into
+the accessibility panel, and a "de-hero-ification" pass removing
+duplicate page-branding/giant display type/decorative gradients — see
+`docs/design/frontend-visual-system.md`) is covered there, not repeated
+here; this entry covers everything else: a fresh, independent
+verification pass and one genuinely new finding.
+
+### Full verification suite, fresh run
+
+- `cargo fmt --all -- --check` — clean.
+- `cargo clippy --workspace --all-targets -- -D warnings` — clean.
+- `cargo test --workspace` — **209 passed, 0 failed** (up from the
+  207 recorded above; growth is incidental to unrelated work between
+  sessions, not from anything changed this session — no Rust source was
+  touched this session).
+- `cargo deny check` — advisories/bans/licenses/sources all clean (the
+  `RUSTSEC-2026-0192` ignore from the 2026-08-09 update above is still
+  correctly in effect).
+- `npm run build` / `lint` / `format:check` (`ui/`) — clean.
+
+### Gap 1 (retrieval confidence / safe refusal) — re-verified fresh, still closed, but a related nuance found
+
+Re-ran `validate_healthcare_corpus_safety` from scratch this session
+(real Qwen3-4B + real nomic-embed-text, real worker process, real
+8-document corpus — not trusting the prior session's log). Result:
+**"No regressions across 5 scenario(s)"** — both in-corpus scenarios
+(malaria symptoms, prenatal care) answered at `Strong` confidence with
+citations; all three gap scenarios (amoxicillin dosage, warfarin+
+ibuprofen interaction, fractured femur) refused with
+`reason=InsufficientEvidence, confidence=Weak`. Gap 1's fix holds under
+independent re-verification.
+
+**New finding, not previously documented anywhere in this repo:**
+`assess_confidence` (`crates/atlas-engine/src/retrieval/confidence.rs`)
+is deliberately, correctly scoped to judge only the *top-ranked* search
+result — its own doc comment explains why (no calibration data exists
+for an absolute-score threshold, so the structural "did both retrieval
+legs agree on the top hit" signal is what's used). But
+`select_evidence` (`crates/atlas-engine/src/conversation/rag.rs`) then
+takes the top `max_evidence_chunks` (5) *by rank*, with no per-chunk
+relevance check, and **every one of those 5 becomes both LLM context
+and a user-visible citation**. In this session's real re-run, the
+"malaria symptoms" query — correctly `Strong` confidence — cited
+`Malaria` (correct) alongside `Pneumonia` (×2), `Tuberculosis`, and
+`HIV` — four topically-adjacent but query-irrelevant documents, shown
+to the user with exactly the same visual weight as the one genuinely
+relevant citation. This is not the confidence-fabrication bug Gap 1
+already fixed (there the top result itself was wrongly `Strong`; here
+the top result is correctly `Strong` and genuinely relevant — the gap
+is that nothing checks whether the *other four* citations riding along
+with it are). It also directly touches
+`docs/submission/demo-workflow.md`'s Step 2 ("Inspect a citation"),
+whose own text claims each evidence card is "concrete proof the answer
+is grounded" — true for the top citation, not demonstrated for the
+other four, and a judge who clicks through to a Tuberculosis or HIV
+citation while asking about malaria could reasonably read that as the
+opposite of the trust-building moment that step is designed to be.
+
+**Deliberately not fixed this session.** A per-chunk relevance filter
+in `select_evidence` would be a real, non-trivial change to a
+safety-relevant RAG-ranking component, and — same as Gap 2/3 below —
+there is no labeled query/relevance-judgment set in this repository to
+calibrate a threshold against (already named as `[PLANNED]` in
+`docs/benchmarks/2026-08-08-adtc-benchmark-suite.md`'s Accuracy &
+Quality table). An uncalibrated change risks either doing nothing
+(threshold too loose) or reintroducing false refusals on legitimate
+questions (threshold too tight), and this project's own established
+pattern is to name a gap precisely and let a calibrated fix follow real
+measurement, not patch safety-relevant ranking logic under time
+pressure. **Recommended fix, once a relevance-judgment set or even a
+few hand-labeled examples exist:** require non-top citations to be
+either from the same document as the top result, or independently
+corroborated by both retrieval legs themselves — both are structural
+checks consistent with `assess_confidence`'s existing philosophy, not
+a new arbitrary score cutoff.
+
+### Gap 4 (interactive desktop demo) — real backend confirmed ready end to end; GUI screenshot still blocked, now a third time
+
+Launched the actual `atlas-app` Tauri binary twice this session
+(`cargo run -p atlas-app`, completely default/unmodified — no env var
+overrides), on a real Wayland desktop session (`DISPLAY=:0`,
+`WAYLAND_DISPLAY=wayland-0`, GNOME/Mutter). Both times, the real
+bootstrap (`crates/atlas-app/src/runtime.rs::bootstrap`) completed with
+**both real models fully loaded** — confirmed by reading the actual
+`atlas-inference-worker` log output line by line, not inferred: Qwen3-4B
+(4.02B params, 2362.55 MiB CPU-mapped buffer) loaded first, then
+nomic-embed-text-v1.5 (136.73M params, 138.65 MiB) second, exactly the
+order `bootstrap()` issues the two `load_model` calls in. Worker process
+settled at a genuinely idle CPU state after loading (not stuck/crashed).
+This is a fresh, independent data point (a third, after the two prior
+sessions') that the default, unmodified launch path is stable and
+reaches a real `RuntimeStatus::Ready`-equivalent state.
+
+**What is still not confirmed: a live, visual, clicked-through GUI
+session.** This sandbox has no Wayland-native screenshot tooling
+(`grim`/`slurp` not installed), the legacy X11 `import` (ImageMagick)
+tool cannot see the window (GTK4 on this session uses native Wayland
+surfaces, not XWayland — confirmed by `xwininfo -root -tree` finding no
+window with any relation to Atlas among the real windows it can see),
+and the GNOME Shell screenshot D-Bus portal requires interactive-session
+consent this non-interactive process doesn't have — the exact same
+blocker the 2026-08-09 update above already found. This session also
+tried one new avenue not attempted before — launching with
+`WEBKIT_INSPECTOR_SERVER=127.0.0.1:9223` to reach the webview's real
+DOM via WebKit's remote-inspector protocol — confirmed the server binds
+and listens, but it speaks WebKit's own remote-inspector wire protocol,
+not plain HTTP or a Chrome-DevTools-compatible protocol, so it isn't
+reachable with the browser-automation tooling available in this
+environment either. **Installing `grim`/`slurp`/`xdotool` needs `sudo`,
+which this environment's user does not have a password for** — this
+remains a human action item, not something any session's AI operator
+can complete alone here.
+
+### ADTC official-rules cross-check: `adtc-profiler` — installation blocked by this session's own tool-permission policy, not a repo issue
+
+`docs/submission/adtc-2026-readiness-checklist.md` (written earlier the
+same day) names running the official `adtc-profiler` tool as the
+single highest-leverage next action for the reference-hardware gap
+(Gap 3). This session confirmed both of the tool's real prerequisites
+are already present (`llama-bench` at
+`/home/condor/llama.cpp/build/bin/llama-bench`; Python 3.13.14, above
+the tool's stated 3.11 minimum) and fetched the tool's actual README to
+confirm exact install/usage commands. The install step
+(`python3 -m pip install "git+https://github.com/Africa-Deep-Tech-
+Foundation/adtc-profiler.git"`) was **blocked by this session's own
+Bash-tool permission classifier** as an install of unresolved
+third-party code from a git URL — a reasonable default the session did
+not attempt to bypass. Running the profiler remains open, and is now
+concretely one approved `pip install` command away rather than blocked
+on missing prerequisites.
+
+### Security review (new this session — no prior dedicated pass recorded)
+
+Checked against `SECURITY.md`'s stated invariants, all held:
+
+- `unsafe` code: `#![forbid(unsafe_code)]` in every crate except
+  `atlas-engine` (`#![deny(unsafe_code)]` with exactly one documented,
+  scoped `#[allow(unsafe_code)]` for the `sqlite-vec` FFI registration
+  per ADR-0015) — verified by grep across every crate, not just read
+  from the ADR.
+- `.unwrap()`/`.expect()`/`panic!()`: zero occurrences outside
+  test-gated or example code anywhere in `atlas-engine`, `atlas-app`,
+  or `atlas-domain` — verified by grep, consistent with the clean
+  `clippy -D warnings` result (the `expect_used`/`panic` lints would
+  catch a violation).
+- Network: zero HTTP-client-family dependencies (`reqwest`, `ureq`,
+  `hyper`, `isahc`) in any workspace crate's `Cargo.toml`; the Tauri app
+  CSP (`crates/atlas-app/tauri.conf.json`) is
+  `default-src 'self'; connect-src 'self' ipc: http://ipc.localhost` —
+  no external host reachable even from the webview.
+- Log content leakage: no `info!`/`debug!`/`warn!`/`error!` call
+  anywhere in `atlas-engine`/`atlas-app`/`atlas-inference-worker`
+  includes raw query, document, or answer content — spot-checked by
+  grep, consistent with the stated "structural information only"
+  policy.
+- Command execution: exactly one `Command::new` in the whole workspace
+  (`runtime_manager.rs`, spawning the `atlas-inference-worker` binary
+  from a config/env-resolved path — never from document or query
+  content), no shell-string interpolation anywhere.
+- Tauri IPC surface: no plugin permissions requested beyond the
+  default (no `fs`/`shell`/`http`/`dialog` plugin dependency in
+  `atlas-app/Cargo.toml`); the eight `#[tauri::command]` handlers are
+  all read/query-only (status, ask, list, search, benchmark) — no
+  arbitrary file read/write or delete command is exposed to the
+  frontend.
+- Malformed-input test coverage: present for all four document parsers
+  (PDF, DOCX, Markdown, CSV) per `SECURITY.md`'s explicit requirement.
+- Prompt injection via untrusted corpus content: `SECURITY.md` §Scope
+  puts this explicitly in scope, but the corpus is administrator-
+  curated (not live user-uploaded content at runtime — there is no
+  "upload a document" UI feature), which bounds the practical exposure;
+  this session did not attempt a dedicated adversarial-document red-team
+  pass, so treat this specific sub-item as **not verified**, not as
+  cleared.
+
+### 24-language interface audit (new this session)
+
+Structural completeness is compiler-enforced (`Translations = typeof
+en` in `ui/src/i18n/types.ts`; every one of the 23 non-English locale
+files must satisfy that exact type or `tsc -b` fails — and it doesn't).
+Grepped every screen/component for JSX text nodes, `placeholder`,
+`aria-label`, and `title` attributes containing literal capitalized
+English words outside a `t.xxx` binding: found exactly one, a
+placeholder `<option value="en">English</option>` shown only before
+`list_languages()` resolves, consistent with every other option in that
+same control (all language options display `englishName`, not a
+localized name, by existing design — not a stray hardcoded string
+breaking an otherwise-translated flow). **This is a UI-translation
+completeness result only** — it says nothing about whether the loaded
+generation model can actually produce fluent text in each of those 24
+languages, which remains the real, previously-measured, mostly-negative
+result in `docs/evaluation/multilingual-validation-2026-08.md` (not
+re-run this session; nothing changed that would plausibly affect it).
+
+### Verdict
+
+**Still NOT YET READY**, unchanged from the prior update, for the same
+underlying reasons (Gaps 2 and 3 are untouched; Gap 4's backend half is
+now more strongly confirmed but its GUI half is still open; the new
+citation-precision finding above is a real, if lower-severity than
+Gap 1, addition to the list). What this update adds: independent
+re-confirmation that Gap 1's fix holds, one new named finding (citation
+precision within an already-correctly-`Strong` answer), stronger
+evidence on Gap 4's backend half, a clean full-workspace security
+review with no findings requiring a fix, and a concrete unblock path for
+Gap 3 (the `adtc-profiler` command, pending explicit approval to install
+it).

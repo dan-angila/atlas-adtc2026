@@ -64,6 +64,22 @@ Click into the **Evidence used** panel beneath the answer.
   actually carries a recorded license — its *absence* on a document is
   itself an honest signal, not a UI bug.
 
+**Known limitation, worth knowing before demoing live:** the confidence
+badge judges only the single top-ranked retrieval result; the up-to-five
+citations shown alongside it are not individually relevance-filtered.
+**Both** in-corpus demo questions above currently exhibit this in this
+session's real run — malaria-symptoms correctly cites `Malaria` but
+also `Pneumonia` (×2) and `Tuberculosis`/`HIV`; prenatal-care correctly
+cites `Prenatal Care` (×2) but also `Diabetes` and `HIV` (×2). See
+`docs/execution/gate-1-readiness.md`'s second 2026-08-09 update for the
+full finding and why it hasn't been fixed yet. If an evaluator asks
+about a citation that looks off-topic during Step 2, that is this
+known, named gap — not a fabricated source; every citation still traces
+to a real, retrieved chunk, and the *answer text itself* has held up as
+correct and on-topic in every real run this project has done. Consider
+narrating this proactively during a live demo rather than letting an
+evaluator discover it and read it as an error.
+
 ## Step 3 — Ask an unsupported question (the safety moment)
 
 Type: **"Is it safe to take warfarin together with ibuprofen?"** (or:

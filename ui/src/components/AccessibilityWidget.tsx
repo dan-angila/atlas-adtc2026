@@ -228,6 +228,7 @@ export function AccessibilityWidget() {
                   style={{ fontSize: 11 + index * 2 }}
                   onClick={() => update("textScale", size.scale)}
                   aria-pressed={settings.textScale === size.scale}
+                  aria-label={`${t.accessibility.textSize} ${Math.round(size.scale * 100)}%`}
                 >
                   {size.label}
                 </button>
