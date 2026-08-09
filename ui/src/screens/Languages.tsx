@@ -68,54 +68,93 @@ export function Languages({ runtimeStatus }: { runtimeStatus: RuntimeStatusDto |
   const validatedCount = languages.filter(
     (language) => language.validationStatus === "validated",
   ).length;
+  const registryCount = languages.length;
+  const plausibleCount = languages.filter(
+    (language) => language.validationStatus === "plausible-fluent",
+  ).length;
+  const partialOrInconclusiveCount = languages.filter(
+    (language) =>
+      language.validationStatus === "partial" || language.validationStatus === "inconclusive",
+  ).length;
 
   return (
-    <div>
-      <div
-        className="error-banner"
-        style={{
-          background: "var(--info-bg)",
-          borderColor: "var(--info-border)",
-          color: "var(--info-text)",
-          marginBottom: "var(--space-5)",
-        }}
-      >
-        <AlertIcon />
-        <span>
-          Registration in this list is metadata only, not a capability claim. Real generation
-          testing against Qwen3-4B on 2026-08-08 found only <strong>{validatedCount}</strong> of{" "}
-          {languages.length} languages produce reliably correct output — see the status column below
-          for every language's actual, measured result.
-        </span>
-      </div>
-
-      <div className="doc-list">
-        {languages.map((language) => (
-          <div className="doc-card" key={language.code}>
-            <div className="doc-card-header">
-              <div>
-                <h3 className="doc-card-title">
-                  {language.englishName}{" "}
-                  <span className="notice" style={{ fontWeight: 400 }}>
-                    {language.nativeName !== language.englishName
-                      ? `· ${language.nativeName}`
-                      : null}
-                  </span>
-                </h3>
-              </div>
-              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                <Badge tone="neutral">{language.direction.toUpperCase()}</Badge>
-                <Badge tone={validationTone(language.validationStatus)}>
-                  {STATUS_LABEL[language.validationStatus]}
-                </Badge>
-              </div>
-            </div>
-            <p className="notice" style={{ margin: 0 }}>
-              {language.validationNote}
-            </p>
+    <div className="product-screen">
+      <section className="hero-panel compact">
+        <div>
+          <span className="eyebrow">Languages</span>
+          <h2>Registered does not mean fully validated</h2>
+          <p>
+            This registry is real application data. The status shown for each language reflects
+            measured evaluation, not a marketing claim based on mere registration.
+          </p>
+        </div>
+        <div className="hero-metric-grid compact-grid">
+          <div>
+            <span className="hero-metric-label">Registered</span>
+            <strong>{registryCount}</strong>
           </div>
-        ))}
-      </div>
+          <div>
+            <span className="hero-metric-label">Retrieval / generation validated</span>
+            <strong>{validatedCount}</strong>
+          </div>
+          <div>
+            <span className="hero-metric-label">Plausible fluent</span>
+            <strong>{plausibleCount}</strong>
+          </div>
+          <div>
+            <span className="hero-metric-label">Partial or inconclusive</span>
+            <strong>{partialOrInconclusiveCount}</strong>
+          </div>
+        </div>
+      </section>
+
+      <section className="atlas-panel">
+        <div
+          className="error-banner"
+          style={{
+            background: "var(--info-bg)",
+            borderColor: "var(--info-border)",
+            color: "var(--info-text)",
+            marginBottom: "var(--space-5)",
+          }}
+        >
+          <AlertIcon />
+          <span>
+            Registration in this list is metadata only, not a capability claim. Real generation
+            testing against Qwen3-4B on 2026-08-08 found only <strong>{validatedCount}</strong> of{" "}
+            {languages.length} languages produce reliably correct output — see the status column
+            below for every language's actual, measured result.
+          </span>
+        </div>
+
+        <div className="knowledge-grid">
+          {languages.map((language) => (
+            <article className="knowledge-card" key={language.code}>
+              <div className="knowledge-card-topline">
+                <div>
+                  <h3>
+                    {language.englishName}{" "}
+                    <span className="notice" style={{ fontWeight: 400 }}>
+                      {language.nativeName !== language.englishName
+                        ? `· ${language.nativeName}`
+                        : null}
+                    </span>
+                  </h3>
+                </div>
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <Badge tone="neutral">{language.direction.toUpperCase()}</Badge>
+                  <Badge tone={validationTone(language.validationStatus)}>
+                    {STATUS_LABEL[language.validationStatus]}
+                  </Badge>
+                </div>
+              </div>
+              <p className="notice" style={{ margin: 0 }}>
+                {language.validationNote}
+              </p>
+            </article>
+          ))}
+        </div>
+      </section>
     </div>
   );
 }

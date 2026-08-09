@@ -17,23 +17,27 @@ const ATLAS_NAV_ITEMS: { id: Screen; label: string; icon: ReactNode }[] = [
 const SCREEN_TITLES: Record<Screen, { title: string; subtitle: string }> = {
   ask: {
     title: "Ask Atlas",
-    subtitle: "Offline healthcare intelligence, grounded in your local knowledge base",
+    subtitle:
+      "Question, retrieve, cite, and refuse safely when the local evidence is insufficient.",
   },
   knowledge: {
     title: "Medical Knowledge",
-    subtitle: "Browse and verify the documents Atlas can cite",
+    subtitle: "Browse the real healthcare documents Atlas can retrieve and cite.",
   },
   drugs: {
     title: "Drug Reference",
-    subtitle: "Search medicine information across the loaded knowledge base",
+    subtitle:
+      "Inspect medication-related evidence from the loaded corpus without turning Atlas into an ERP.",
   },
   languages: {
     title: "Languages",
-    subtitle: "Registered languages and their real, measured validation status",
+    subtitle:
+      "See the registered language pack list and the actual measured validation results behind it.",
   },
   runtime: {
     title: "Runtime & Benchmark",
-    subtitle: "Model, hardware, and real performance measurements",
+    subtitle:
+      "Expose the local runtime identity, readiness, and benchmark data without fabrication.",
   },
 };
 
@@ -49,21 +53,34 @@ export function AppShell({
   children: ReactNode;
 }) {
   const { title, subtitle } = SCREEN_TITLES[active];
+  const runtimeSummary =
+    runtimeStatus?.state === "ready"
+      ? `${runtimeStatus.documentCount ?? 0} local documents · ${runtimeStatus.languageCount ?? 0} languages registered`
+      : runtimeStatus?.state === "loading"
+        ? "Preparing local models and knowledge base"
+        : "Desktop runtime required for real Atlas execution";
 
   return (
     <div className="app-shell">
       <aside className="app-sidebar">
-        <div className="app-brand">
-          <div className="app-brand-mark" aria-hidden="true">
-            A
+        <div className="atlas-sidebar-card">
+          <div className="app-brand">
+            <div className="app-brand-mark" aria-hidden="true">
+              A
+            </div>
+            <div className="app-brand-text">
+              <h1>BRIX ATLAS</h1>
+              <p>Healthcare Intelligence</p>
+            </div>
           </div>
-          <div className="app-brand-text">
-            <h1>Atlas</h1>
-            <p>Healthcare Intelligence</p>
-          </div>
+          <div className="sidebar-kicker">Offline / On-device</div>
+          <p className="sidebar-blurb">
+            Atlas answers from the evidence loaded on this machine. It cites what it used and
+            refuses when it cannot verify enough support.
+          </p>
         </div>
 
-        <div className="nav-group-label">Atlas</div>
+        <div className="nav-group-label">Workspace</div>
         <ul className="nav-list">
           {ATLAS_NAV_ITEMS.map((item) => (
             <li key={item.id}>
@@ -81,15 +98,22 @@ export function AppShell({
           ))}
         </ul>
 
+        <div className="sidebar-runtime-summary">
+          <span className="sidebar-kicker">Runtime</span>
+          <p>{runtimeSummary}</p>
+        </div>
+
         <div className="sidebar-footer">
           <p className="notice" style={{ padding: "0 var(--space-3)" }}>
-            Not a diagnostic or prescribing tool. Answers are grounded in loaded documents only.
+            Not a diagnostic or prescribing tool. Atlas presents healthcare intelligence grounded in
+            loaded documents only.
           </p>
         </div>
       </aside>
 
       <header className="app-header">
         <div className="app-header-title">
+          <span className="eyebrow">BRIX ATLAS</span>
           <h2>{title}</h2>
           <p>{subtitle}</p>
         </div>
