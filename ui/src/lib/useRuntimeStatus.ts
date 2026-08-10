@@ -2,12 +2,30 @@ import { useEffect, useState } from "react";
 
 import { atlas, isTauriRuntime, type RuntimeStatusDto } from "./tauri";
 
+/** Poll cadence while there's no settled answer yet — active bootstrap
+ * or an in-progress worker-crash recovery, both real, bounded-but-slow
+ * operations (`docs/benchmarks/2026-08-07-qwen3-4b-validation.md`). */
+const LOADING_POLL_INTERVAL_MS = 2000;
+
 /**
- * Polls the real Runtime status every 2s while loading, then stops once
- * it settles into "ready" or "unavailable" — a poll rather than a Tauri
- * event purely for simplicity; model loading is a one-time, ~50-second
- * startup cost (`docs/benchmarks/2026-08-07-qwen3-4b-validation.md`),
- * not a hot path this needs to be more sophisticated for.
+ * Poll cadence once settled into "ready" or "unavailable". The backend
+ * command this calls (`get_runtime_status`) now does a real liveness
+ * check rather than reporting a frozen startup snapshot — the worker is
+ * a supervised child process that can die and get silently respawned
+ * mid-session (`docs/adr/0010-inference-worker-process-isolation.md`),
+ * and a "ready" badge earned at startup says nothing about whether that
+ * already happened. Kept much slower than the loading cadence since a
+ * healthy steady-state check is cheap but not free (a real IPC round
+ * trip to the worker process).
+ */
+const SETTLED_POLL_INTERVAL_MS = 20000;
+
+/**
+ * Polls the real Runtime status: every 2s while there's no settled
+ * state yet, then every 20s afterward — never stopping outright, so a
+ * worker crash and self-healing respawn mid-session is reflected in the
+ * badge instead of leaving it frozen on whatever was true at startup.
+ * A poll rather than a Tauri event purely for simplicity.
  */
 export function useRuntimeStatus(): RuntimeStatusDto | null {
   const [status, setStatus] = useState<RuntimeStatusDto | null>(null);
@@ -32,9 +50,9 @@ export function useRuntimeStatus(): RuntimeStatusDto | null {
         const result = await atlas.getRuntimeStatus();
         if (cancelled) return;
         setStatus(result);
-        if (result.state === "loading") {
-          timer = setTimeout(poll, 2000);
-        }
+        const interval =
+          result.state === "loading" ? LOADING_POLL_INTERVAL_MS : SETTLED_POLL_INTERVAL_MS;
+        timer = setTimeout(poll, interval);
       } catch {
         if (!cancelled) {
           setStatus({
@@ -43,6 +61,7 @@ export function useRuntimeStatus(): RuntimeStatusDto | null {
             documentCount: null,
             languageCount: null,
           });
+          timer = setTimeout(poll, SETTLED_POLL_INTERVAL_MS);
         }
       }
     }
