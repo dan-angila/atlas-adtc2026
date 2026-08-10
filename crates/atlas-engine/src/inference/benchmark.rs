@@ -109,7 +109,8 @@ pub fn run_benchmark(
 
     let start = Instant::now();
     let stream = match engine.generate(GenerateSpec {
-        prompt: prompt.to_string(),
+        system: String::new(),
+        user: prompt.to_string(),
         params,
     }) {
         Ok(stream) => stream,

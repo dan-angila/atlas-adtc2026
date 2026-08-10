@@ -71,6 +71,16 @@ struct ManagerState {
     child: Option<Child>,
     connection: Option<Connection>,
     consecutive_failures: u32,
+    /// The last [`LoadModelSpec`] this manager successfully loaded into
+    /// each role, if any — replayed against a freshly spawned worker by
+    /// [`RuntimeManager::ensure_connection`] after a crash, per
+    /// ADR-0010's "the worker is stateless across restarts... it
+    /// re-receives a LoadModel command after every restart" contract.
+    /// `None` after a role has never been loaded, or after an explicit
+    /// [`RuntimeManager::unload_model`] — an intentional unload must not
+    /// be silently undone by a later respawn.
+    generation_spec: Option<LoadModelSpec>,
+    embedding_spec: Option<LoadModelSpec>,
 }
 
 impl ManagerState {
@@ -79,6 +89,15 @@ impl ManagerState {
             child: None,
             connection: None,
             consecutive_failures: 0,
+            generation_spec: None,
+            embedding_spec: None,
+        }
+    }
+
+    fn spec_slot(&mut self, role: ModelRole) -> &mut Option<LoadModelSpec> {
+        match role {
+            ModelRole::Generation => &mut self.generation_spec,
+            ModelRole::Embedding => &mut self.embedding_spec,
         }
     }
 }
@@ -177,7 +196,22 @@ impl RuntimeManager {
         };
 
         match spawn_and_connect() {
-            Ok(connection) => {
+            Ok(mut connection) => {
+                // A freshly (re)spawned worker starts with nothing
+                // loaded — replay whatever this manager last successfully
+                // loaded into each role before treating the connection as
+                // usable, so a caller that only ever sees `ensure_connection`
+                // succeed can trust the worker is in the same state it was
+                // before a crash. `state.connection` is `None` here in
+                // both the very first connection (nothing to replay yet —
+                // `load_model` hasn't been called) and a post-crash
+                // reconnect (replay is exactly the fix), so this is safe
+                // to run unconditionally.
+                if let Err(error) = replay_loaded_models(&mut connection, state) {
+                    state.consecutive_failures += 1;
+                    state.child = None;
+                    return Err(error);
+                }
                 state.connection = Some(connection);
                 state.consecutive_failures = 0;
                 Ok(())
@@ -245,6 +279,64 @@ fn connect_with_retry(socket_path: &Path) -> Result<UnixStream, InferenceEngineE
     }
 }
 
+/// Replays every role this manager has previously loaded successfully
+/// against a just-(re)connected worker — see ADR-0010's "stateless
+/// across restarts... re-receives a LoadModel command after every
+/// restart" contract. A no-op when nothing has ever been loaded yet
+/// (the very first connection, made from [`RuntimeManager::load_model`]
+/// itself before there's anything to replay).
+fn replay_loaded_models(
+    connection: &mut Connection,
+    state: &ManagerState,
+) -> Result<(), InferenceEngineError> {
+    for spec in [
+        state.generation_spec.as_ref(),
+        state.embedding_spec.as_ref(),
+    ]
+    .into_iter()
+    .flatten()
+    {
+        replay_loaded_model(connection, spec)?;
+    }
+    Ok(())
+}
+
+/// Sends one `LoadModel` request directly over an already-established
+/// connection and waits for the ack — the same wire request
+/// [`RuntimeManager::load_model`] sends, but without repeating client-side
+/// Model Validation (already run once, when this spec was first accepted)
+/// or touching `state` itself, since the caller ([`RuntimeManager::ensure_connection`])
+/// holds the lock and decides what to do with a failure.
+fn replay_loaded_model(
+    connection: &mut Connection,
+    spec: &LoadModelSpec,
+) -> Result<(), InferenceEngineError> {
+    let request = WorkerRequest::LoadModel(LoadModelRequest {
+        slot: to_wire_slot(spec.role),
+        path: spec.path.clone(),
+        context_length: spec.context_length,
+        thread_count: spec.thread_count,
+        gpu_layers: 0, // ADR-0003: CPU-only, always.
+    });
+
+    let response = (|| -> Result<WorkerResponse, IpcError> {
+        write_message(&mut connection.writer, &request)?;
+        read_message(&mut connection.reader)
+    })()
+    .map_err(|error| InferenceEngineError::Unavailable(error.to_string()))?;
+
+    match response {
+        WorkerResponse::ModelLoaded(_) => Ok(()),
+        WorkerResponse::Error(error) => Err(InferenceEngineError::LoadFailed(format!(
+            "reloading {:?} after a worker restart failed: {}",
+            spec.role, error.message
+        ))),
+        other => Err(InferenceEngineError::Unavailable(format!(
+            "unexpected response replaying LoadModel after a worker restart: {other:?}"
+        ))),
+    }
+}
+
 impl InferenceEngine for RuntimeManager {
     fn load_model(&self, spec: LoadModelSpec) -> Result<LoadedModelInfo, InferenceEngineError> {
         // Model Validation runs here, before the file ever crosses the
@@ -259,6 +351,7 @@ impl InferenceEngine for RuntimeManager {
             ))
         })?;
 
+        let spec_for_replay = spec.clone();
         let request = WorkerRequest::LoadModel(LoadModelRequest {
             slot: to_wire_slot(spec.role),
             path: spec.path,
@@ -267,23 +360,52 @@ impl InferenceEngine for RuntimeManager {
             gpu_layers: 0, // ADR-0003: CPU-only, always.
         });
 
-        match self.request_response(&request)? {
-            WorkerResponse::ModelLoaded(info) => Ok(LoadedModelInfo {
+        let info = match self.request_response(&request)? {
+            WorkerResponse::ModelLoaded(info) => LoadedModelInfo {
                 context_length: info.context_length,
                 vocab_size: info.vocab_size,
                 embedding_length: info.embedding_length,
                 layer_count: info.layer_count,
-            }),
-            WorkerResponse::Error(error) => Err(InferenceEngineError::LoadFailed(error.message)),
-            other => Err(InferenceEngineError::Unavailable(format!(
-                "unexpected response to LoadModel: {other:?}"
-            ))),
-        }
+            },
+            WorkerResponse::Error(error) => {
+                return Err(InferenceEngineError::LoadFailed(error.message))
+            }
+            other => {
+                return Err(InferenceEngineError::Unavailable(format!(
+                    "unexpected response to LoadModel: {other:?}"
+                )))
+            }
+        };
+
+        // Remembered so a worker respawn after this call (a crash, an
+        // OOM-kill — see ADR-0010) can replay it automatically; see
+        // `ensure_connection`/`replay_loaded_models`.
+        let mut state = self
+            .inner
+            .state
+            .lock()
+            .expect("runtime manager state lock poisoned");
+        let role = spec_for_replay.role;
+        *state.spec_slot(role) = Some(spec_for_replay);
+        drop(state);
+
+        Ok(info)
     }
 
     fn unload_model(&self, role: ModelRole) -> Result<(), InferenceEngineError> {
         match self.request_response(&WorkerRequest::Unload(to_wire_slot(role)))? {
-            WorkerResponse::Ack => Ok(()),
+            WorkerResponse::Ack => {
+                // An explicit unload is a deliberate decision — a later
+                // respawn must not silently undo it by reloading this
+                // role again.
+                let mut state = self
+                    .inner
+                    .state
+                    .lock()
+                    .expect("runtime manager state lock poisoned");
+                *state.spec_slot(role) = None;
+                Ok(())
+            }
             other => Err(InferenceEngineError::Unavailable(format!(
                 "unexpected response to Unload: {other:?}"
             ))),
@@ -328,7 +450,8 @@ impl InferenceEngine for RuntimeManager {
         let (handle, stream) = streaming::channel();
         let inner = Arc::clone(&self.inner);
         let request = WorkerRequest::Generate(GenerateRequest {
-            prompt: spec.prompt,
+            system: spec.system,
+            user: spec.user,
             params: spec.params,
         });
 
@@ -527,7 +650,8 @@ mod tests {
         let manager = RuntimeManager::new(binary_path, "test-generate-not-loaded");
         let stream = manager
             .generate(GenerateSpec {
-                prompt: "hello".to_string(),
+                system: String::new(),
+                user: "hello".to_string(),
                 params: atlas_domain::InferenceParams::default(),
             })
             .expect("starting generation should succeed even though it will fail asynchronously");
@@ -535,5 +659,231 @@ mod tests {
         let events: Vec<_> = stream.collect();
         assert_eq!(events.len(), 1);
         assert!(matches!(events[0], streaming::StreamEvent::Error(_)));
+    }
+
+    /// Locates a real model file at `models/<name>` relative to the
+    /// workspace root, the same convention `worker_binary_path` uses for
+    /// the worker binary. `None` (skip, not fail) if it isn't present —
+    /// these are real integration tests against real GGUF files, not
+    /// something every environment running `cargo test` is guaranteed to
+    /// have.
+    fn model_path(name: &str) -> Option<PathBuf> {
+        let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let workspace_root = manifest_dir.parent()?.parent()?;
+        let candidate = workspace_root.join("models").join(name);
+        candidate.exists().then_some(candidate)
+    }
+
+    /// Sends `SIGKILL` to the worker process this manager currently owns
+    /// — simulating a real crash (segfault, OOM-kill) the way ADR-0010's
+    /// process isolation exists to survive, entirely out of band from
+    /// any of `RuntimeManager`'s own shutdown machinery. Reaches into
+    /// `manager`'s private state directly rather than via `pgrep`/the
+    /// socket path: this test module is a child of `runtime_manager`, so
+    /// it can see `Inner`'s private fields, and doing it this way is
+    /// exact (no risk of matching the wrong process) rather than
+    /// string-matching a command line.
+    fn kill_worker_out_of_band(manager: &RuntimeManager) {
+        let pid = {
+            let state = manager.inner.state.lock().expect("state lock");
+            state.child.as_ref().map(std::process::Child::id)
+        }
+        .expect("a worker process must already be spawned before it can be killed");
+
+        let status = std::process::Command::new("kill")
+            .args(["-9", &pid.to_string()])
+            .status()
+            .expect("invoke kill(1)");
+        assert!(status.success(), "`kill -9 {pid}` itself failed");
+
+        // Give the OS a moment to actually tear the process down, so the
+        // next request's read/write genuinely observes a closed socket
+        // instead of racing the signal.
+        std::thread::sleep(Duration::from_millis(200));
+    }
+
+    /// The exact regression this fix exists for: a worker crash
+    /// mid-session must not turn into a permanent, silent "no model is
+    /// currently loaded" (the real bug reproduced and diagnosed against
+    /// this same query — Drug Reference searching "cancer") — the
+    /// respawned worker must have both real models reloaded into it
+    /// automatically, transparently to the caller, before the next
+    /// request reaches it.
+    #[test]
+    fn a_killed_worker_is_respawned_with_both_real_models_reloaded_automatically() {
+        let Some(binary_path) = worker_binary_path() else {
+            eprintln!(
+                "skipping: atlas-inference-worker binary not built — run \
+                 `cargo build -p atlas-inference-worker` first"
+            );
+            return;
+        };
+        let Some(generation_model) = model_path("Qwen3-4B-Q4_K_M.gguf") else {
+            eprintln!("skipping: real generation model not present at models/Qwen3-4B-Q4_K_M.gguf");
+            return;
+        };
+        let Some(embedding_model) = model_path("nomic-embed-text-v1.5-Q8_0.gguf") else {
+            eprintln!(
+                "skipping: real embedding model not present at \
+                 models/nomic-embed-text-v1.5-Q8_0.gguf"
+            );
+            return;
+        };
+
+        let manager = RuntimeManager::new(binary_path, "test-crash-respawn-reload");
+        manager
+            .load_model(LoadModelSpec {
+                role: ModelRole::Generation,
+                path: generation_model,
+                context_length: 4096,
+                thread_count: 2,
+            })
+            .expect("generation model load");
+        manager
+            .load_model(LoadModelSpec {
+                role: ModelRole::Embedding,
+                path: embedding_model,
+                context_length: 2048,
+                thread_count: 2,
+            })
+            .expect("embedding model load");
+
+        // Baseline — mirrors `crates/atlas-app/src/commands.rs::search_knowledge`'s
+        // real embed call exactly, including the query text from the
+        // original bug report.
+        manager
+            .embed(EmbedSpec {
+                texts: vec!["cancer".to_string()],
+                thread_count: 2,
+            })
+            .expect("baseline embed must succeed with both models loaded");
+
+        kill_worker_out_of_band(&manager);
+
+        // The request racing the crash fails cleanly — exactly what
+        // ADR-0010 promises ("the in-flight request failing cleanly...
+        // rather than hanging"), and what clears the stale connection so
+        // the *next* call is the one that must respawn and reload.
+        let first_attempt = manager.embed(EmbedSpec {
+            texts: vec!["cancer".to_string()],
+            thread_count: 2,
+        });
+        assert!(
+            first_attempt.is_err(),
+            "the request racing the crash must fail cleanly, not hang or silently succeed"
+        );
+
+        // This is the fix: the manager must have respawned the worker
+        // *and* replayed both LoadModel specs before this request
+        // reaches it.
+        let recovered = manager
+            .embed(EmbedSpec {
+                texts: vec!["cancer".to_string()],
+                thread_count: 2,
+            })
+            .expect(
+                "embed must self-heal after a worker crash — this is the exact bug \
+                 (\"failed to embed the query: no model is currently loaded\") this \
+                 fix exists to close",
+            );
+        assert_eq!(
+            recovered.embedding_dimension, 768,
+            "nomic-embed-text-v1.5 is a real 768-dimensional model"
+        );
+
+        let health = manager.health().expect("health check after recovery");
+        assert!(
+            health.generation_model_loaded,
+            "generation model must have been reloaded automatically"
+        );
+        assert!(
+            health.embedding_model_loaded,
+            "embedding model must have been reloaded automatically"
+        );
+    }
+
+    /// The failure-path complement: if the remembered model file
+    /// genuinely can't be reloaded after a crash (deleted, corrupted —
+    /// simulated here so the test doesn't depend on external timing),
+    /// the manager must surface a real error, never a false success or
+    /// a health check that keeps claiming the role is loaded.
+    #[test]
+    fn a_reload_that_genuinely_fails_after_a_crash_surfaces_a_real_error_not_false_readiness() {
+        let Some(binary_path) = worker_binary_path() else {
+            eprintln!(
+                "skipping: atlas-inference-worker binary not built — run \
+                 `cargo build -p atlas-inference-worker` first"
+            );
+            return;
+        };
+        let Some(embedding_model) = model_path("nomic-embed-text-v1.5-Q8_0.gguf") else {
+            eprintln!(
+                "skipping: real embedding model not present at \
+                 models/nomic-embed-text-v1.5-Q8_0.gguf"
+            );
+            return;
+        };
+
+        // A private, disposable copy — this test corrupts it, and must
+        // never touch the real asset every other test and the real
+        // application depend on.
+        let dir = tempfile::tempdir().expect("tempdir");
+        let copy_path = dir.path().join("embedding-copy.gguf");
+        std::fs::copy(&embedding_model, &copy_path).expect("copy embedding model fixture");
+
+        let manager = RuntimeManager::new(binary_path, "test-crash-reload-failure");
+        manager
+            .load_model(LoadModelSpec {
+                role: ModelRole::Embedding,
+                path: copy_path.clone(),
+                context_length: 2048,
+                thread_count: 2,
+            })
+            .expect("embedding model load from the disposable copy");
+        manager
+            .embed(EmbedSpec {
+                texts: vec!["cancer".to_string()],
+                thread_count: 2,
+            })
+            .expect("baseline embed must succeed");
+
+        kill_worker_out_of_band(&manager);
+
+        // Simulates the file becoming unavailable between the original
+        // load and a later crash (a removable drive unmounted, disk
+        // cleanup, corruption) — the remembered spec still points here,
+        // but a reload against it can now only fail, for real.
+        std::fs::write(&copy_path, b"not a gguf file anymore")
+            .expect("corrupt the disposable copy");
+
+        // Clears the stale connection; not the interesting assertion.
+        let _ = manager.embed(EmbedSpec {
+            texts: vec!["cancer".to_string()],
+            thread_count: 2,
+        });
+
+        let reload_attempt = manager.embed(EmbedSpec {
+            texts: vec!["cancer".to_string()],
+            thread_count: 2,
+        });
+        assert!(
+            matches!(
+                reload_attempt,
+                Err(InferenceEngineError::LoadFailed(_))
+                    | Err(InferenceEngineError::Unavailable(_))
+            ),
+            "a genuinely failed reload must surface as a real, specific error — not \
+             {reload_attempt:?}"
+        );
+
+        // The load-bearing assertion: the runtime must never claim
+        // readiness it doesn't have.
+        let health = manager.health();
+        let falsely_ready = matches!(health, Ok(snapshot) if snapshot.embedding_model_loaded);
+        assert!(
+            !falsely_ready,
+            "must never report embedding_model_loaded=true after a reload that \
+             actually failed: {health:?}"
+        );
     }
 }

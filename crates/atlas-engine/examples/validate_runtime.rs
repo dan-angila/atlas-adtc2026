@@ -82,13 +82,14 @@ fn main() {
     println!("\n== Health Check ==");
     println!("{:#?}", manager.health().expect("health check failed"));
 
-    let prompt =
-        "<|im_start|>user\nWhat is the capital of Kenya?<|im_end|>\n<|im_start|>assistant\n";
-
+    // Chat-template rendering now happens inside the worker (ADR-0016),
+    // using the loaded model's own embedded template — no hand-rolled
+    // ChatML string needed here any more.
     println!("\n== Raw generation (showing actual output text) ==");
     let stream = manager
         .generate(GenerateSpec {
-            prompt: prompt.to_string(),
+            system: String::new(),
+            user: "What is the capital of Kenya?".to_string(),
             params: atlas_domain::InferenceParams {
                 max_tokens: 64,
                 ..Default::default()
@@ -108,7 +109,7 @@ fn main() {
     println!("\n== Benchmark Engine: real generation ==");
     let report = run_benchmark(
         &manager,
-        prompt,
+        "What is the capital of Kenya?",
         atlas_domain::InferenceParams {
             max_tokens: 64,
             ..atlas_domain::InferenceParams::default()

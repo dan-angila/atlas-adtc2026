@@ -152,6 +152,7 @@ fn main() {
                     max_tokens: 96,
                     ..InferenceParams::default()
                 },
+                None,
             )
             .expect("answer call must not error");
 

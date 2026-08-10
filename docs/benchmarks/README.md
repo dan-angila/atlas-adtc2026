@@ -45,7 +45,7 @@ script used, under `/scripts` if it's a reusable benchmark harness.
 
 ## Status
 
-Five reports exist: model/embedding validation, retrieval latency, and
+Seven reports exist: model/embedding validation, retrieval latency, and
 [`2026-08-08-adtc-benchmark-suite.md`](2026-08-08-adtc-benchmark-suite.md),
 which consolidates all of them against the Africa Deep Tech Challenge's
 evaluation categories — read that one first for the overall picture,
@@ -54,3 +54,21 @@ finding: **every report in this repository, including itself, was run
 on development hardware more capable than the competition's stated
 minimum spec** (19 GiB RAM vs. an 8GB target) — no number here is yet
 confirmed to hold on true reference hardware.
+
+[`multilingual-rag-2026-08-10.md`](multilingual-rag-2026-08-10.md) adds
+real before/after latency for the chat-template + retrieval-query fixes
+(ADR-0016/0017) — its own headline caveat: the "after" numbers were
+measured on a machine under real, disclosed CPU contention (a concurrent
+coding session), so absolute latency there is not a clean throughput
+baseline; only the retrieval-side shape (refused → succeeds) is treated
+as a robust finding. Quality/language-capability results for the same
+run are in `/evaluation`, not here.
+
+[`2026-08-10-runtime-launch-verification.md`](2026-08-10-runtime-launch-verification.md)
+is a real-application launch verification (the actual `atlas-app`
+binary, not a diagnostic harness): confirms both models load, the real
+IPC path connects, and the native frontend window comes up cleanly, with
+no new performance number claimed. It also records a real, observed
+caveat — two concurrent `atlas-app` launches contend for the same
+hardcoded inference socket path — as an unfixed diagnostic finding, not
+a resolved issue.

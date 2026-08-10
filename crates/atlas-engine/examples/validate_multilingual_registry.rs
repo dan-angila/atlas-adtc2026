@@ -132,7 +132,8 @@ fn main() {
 
         let stream = manager
             .generate(GenerateSpec {
-                prompt,
+                system: String::new(),
+                user: prompt,
                 params: InferenceParams {
                     max_tokens: 64,
                     ..InferenceParams::default()

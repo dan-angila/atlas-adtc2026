@@ -154,7 +154,8 @@ async function safeInvoke<T>(command: string, args?: Record<string, unknown>): P
 export const atlas = {
   getAppInfo: () => safeInvoke<AppInfo>("get_app_info"),
   getRuntimeStatus: () => safeInvoke<RuntimeStatusDto>("get_runtime_status"),
-  askAtlas: (query: string) => safeInvoke<AskAtlasResponseDto>("ask_atlas", { query }),
+  askAtlas: (query: string, language?: string) =>
+    safeInvoke<AskAtlasResponseDto>("ask_atlas", { query, language: language ?? null }),
   listDocuments: () => safeInvoke<DocumentSummaryDto[]>("list_documents"),
   searchKnowledge: (query: string) =>
     safeInvoke<KnowledgeSearchResponseDto>("search_knowledge", { query }),

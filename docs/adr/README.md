@@ -45,6 +45,8 @@ an issue, don't silently pick a winner.
 | [0013](0013-cpu-isa-build-dispatch-strategy.md) | CPU instruction-set dispatch strategy | Accepted |
 | [0014](0014-healthcare-vertical-pivot.md) | Healthcare vertical pivot for the ADTC 2026 submission | Accepted |
 | [0015](0015-sqlite-vec-unsafe-ffi-scope.md) | A second, narrowly-scoped `unsafe_code` exception for sqlite-vec registration (amends module-boundaries.md rule 7) | Accepted |
+| [0016](0016-chat-template-application-in-inference-worker.md) | Chat-template prompt formatting, applied in the inference worker | Accepted |
+| [0017](0017-language-directive-outside-retrieval-query.md) | Keep the language directive out of the retrieval query | Accepted |
 
 ## Template
 

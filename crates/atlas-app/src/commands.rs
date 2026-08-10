@@ -63,38 +63,81 @@ pub struct RuntimeStatusDto {
     pub language_count: Option<usize>,
 }
 
-/// Reports the real Runtime bootstrap state. Never blocks on the
-/// bootstrap thread — reads whatever the shared status currently holds.
+/// Reports the real Runtime state. Never blocks on the bootstrap thread
+/// while it's still running — a cached [`RuntimeStatus::Loading`]/
+/// [`RuntimeStatus::Unavailable`] is reported as-is. Once bootstrap has
+/// succeeded, though, a cached [`RuntimeStatus::Ready`] is *not* trusted
+/// blindly: the inference worker is a supervised child process that can
+/// die and get silently respawned by [`atlas_engine::inference::runtime_manager::RuntimeManager`]
+/// on the next request (`docs/adr/0010-inference-worker-process-isolation.md`'s
+/// "stateless across restarts" contract) — a bootstrap-time snapshot
+/// can't see that happening later in the session. This calls the real
+/// [`atlas_engine::inference::ports::InferenceEngine::health`] every
+/// time instead, which both answers "is it really ready right now" and
+/// — since a dead connection is repaired as a side effect of any
+/// request, health checks included — doubles as the trigger that
+/// reconnects (and reloads both models into) a freshly respawned
+/// worker.
 #[tauri::command]
 pub fn get_runtime_status(state: tauri::State<'_, SharedRuntimeStatus>) -> RuntimeStatusDto {
-    #[allow(clippy::expect_used)] // a poisoned mutex means a prior panic elsewhere
-    let status = state.lock().expect("runtime status mutex poisoned");
-    match &*status {
-        RuntimeStatus::Loading => RuntimeStatusDto {
+    let ready_runtime = {
+        #[allow(clippy::expect_used)] // a poisoned mutex means a prior panic elsewhere
+        let status = state.lock().expect("runtime status mutex poisoned");
+        match &*status {
+            RuntimeStatus::Loading => {
+                return RuntimeStatusDto {
+                    state: "loading",
+                    reason: None,
+                    document_count: None,
+                    language_count: None,
+                }
+            }
+            RuntimeStatus::Unavailable { reason } => {
+                return RuntimeStatusDto {
+                    state: "unavailable",
+                    reason: Some(reason.clone()),
+                    document_count: None,
+                    language_count: None,
+                }
+            }
+            RuntimeStatus::Ready(runtime) => (
+                runtime.inference.clone(),
+                runtime.knowledge.clone(),
+                runtime.language_registry.len(),
+            ),
+        }
+        // Lock dropped here — the real liveness probe below can take as
+        // long as a full model reload, and must not hold this up for
+        // every other command that briefly locks the same state.
+    };
+    let (inference, knowledge, language_count) = ready_runtime;
+
+    match inference.health() {
+        Ok(health) if health.generation_model_loaded && health.embedding_model_loaded => {
+            let document_count = knowledge.list_documents().map(|docs| docs.len()).ok();
+            RuntimeStatusDto {
+                state: "ready",
+                reason: None,
+                document_count,
+                language_count: Some(language_count),
+            }
+        }
+        // Connected, but at least one role isn't loaded (e.g. a
+        // respawn's model reload is still in flight, or genuinely
+        // failed and `health` is reporting the partial result honestly)
+        // — not ready, but recoverable, exactly like initial bootstrap.
+        Ok(_) => RuntimeStatusDto {
             state: "loading",
             reason: None,
             document_count: None,
             language_count: None,
         },
-        RuntimeStatus::Unavailable { reason } => RuntimeStatusDto {
+        Err(error) => RuntimeStatusDto {
             state: "unavailable",
-            reason: Some(reason.clone()),
+            reason: Some(format!("the Atlas Runtime became unavailable: {error}")),
             document_count: None,
             language_count: None,
         },
-        RuntimeStatus::Ready(runtime) => {
-            let document_count = runtime
-                .knowledge
-                .list_documents()
-                .map(|docs| docs.len())
-                .ok();
-            RuntimeStatusDto {
-                state: "ready",
-                reason: None,
-                document_count,
-                language_count: Some(runtime.language_registry.len()),
-            }
-        }
     }
 }
 
@@ -175,6 +218,14 @@ pub enum AskAtlasResponseDto {
 /// embed → retrieve → assess confidence → assemble a grounded prompt →
 /// generate, or refuse outright with no evidence.
 ///
+/// `query` alone drives retrieval — `language` (a display name like
+/// `"Swahili"`, sent separately by the frontend rather than folded into
+/// `query`) only ever reaches the system preamble. See
+/// `docs/adr/0017-language-directive-outside-retrieval-query.md` for
+/// why that separation is load-bearing: mixing a language directive
+/// into the query text measurably broke retrieval confidence for every
+/// non-English request tested.
+///
 /// # Errors
 ///
 /// Returns `Err` only when the Runtime itself isn't ready (loading or
@@ -186,6 +237,7 @@ pub enum AskAtlasResponseDto {
 pub fn ask_atlas(
     state: tauri::State<'_, SharedRuntimeStatus>,
     query: String,
+    language: Option<String>,
 ) -> Result<AskAtlasResponseDto, String> {
     // Clone the (cheap, Arc-backed) answerer out and drop the lock
     // immediately — `answer()` below runs a real, potentially slow
@@ -213,6 +265,7 @@ pub fn ask_atlas(
                 max_tokens: 512,
                 ..atlas_domain::InferenceParams::default()
             },
+            language.as_deref(),
         )
         .map_err(|error| format!("query failed: {error}"))?;
 
@@ -503,10 +556,23 @@ pub fn search_knowledge(
 
 /// A language's real, dated multilingual-generation validation status —
 /// from `docs/evaluation/multilingual-validation-2026-08.md`'s real
-/// Qwen3-4B test, not inferred from registration. Every value here is a
-/// direct transcription of that report's classification table; if that
-/// report is ever re-run, this must be updated alongside it, not left
-/// to drift.
+/// Qwen3-4B test (2026-08-08, raw-prompt generation only) and
+/// `docs/evaluation/multilingual-rag-retrieval-2026-08-10.md`'s real
+/// full-RAG-pipeline test (2026-08-10, after the chat-template and
+/// retrieval-query fixes — ADR-0016/ADR-0017), not inferred from
+/// registration. Every value here is a direct transcription of one of
+/// those reports' classification tables; if either report is ever
+/// re-run, this must be updated alongside it, not left to drift.
+///
+/// The 2026-08-10 updates below are **re-characterizations from new
+/// evidence, not promotions toward "working"**: several languages that
+/// were `inconclusive` (too little output to judge) or `failed` (pure
+/// English, no target-language content at all) on 2026-08-08 produced
+/// a real, complete response on 2026-08-10 that turned out to still be
+/// unusable — just now precisely characterized as `garbled` or
+/// `partial` instead of `inconclusive`/generic `failed`. No language
+/// was moved to `validated` or `plausible-fluent` by the 2026-08-10
+/// run; see that report's own "Interpretation" section for why.
 fn validation_status(code: &str) -> (&'static str, &'static str) {
     match code {
         "en" => (
@@ -517,21 +583,33 @@ fn validation_status(code: &str) -> (&'static str, &'static str) {
             "plausible-fluent",
             "Substantial, coherent, on-topic real text in the requested language, in real testing on 2026-08-08 — not a native-speaker-confirmed validation.",
         ),
-        "de" | "fr" | "it" | "pt" => (
+        "de" | "fr" | "it" | "pt" | "rn" => (
             "partial",
-            "Real sentences in the requested language, code-mixed with English, in real testing on 2026-08-08.",
+            "Real words/sentences in the requested language, heavily code-mixed with English, in real testing (de/fr/it/pt: 2026-08-08 raw generation; rn: 2026-08-10 real RAG pipeline).",
         ),
-        "ig" | "so" | "sw" => (
-            "inconclusive",
-            "Only a short fragment was produced before the response cut off in real testing on 2026-08-08 — too little to assess.",
+        "so" | "ig" => (
+            "partial",
+            "A real, complete response was produced in 2026-08-10 real RAG-pipeline testing (superseding 2026-08-08's inconclusive short-fragment result) — mostly English, with a minority of genuine target-language words injected.",
         ),
-        "am" | "hi" => (
+        "sw" | "am" => (
+            "garbled",
+            "Real script/vocabulary appeared, but the text was not coherent language, in real testing (am: 2026-08-08; sw: 2026-08-10 real RAG pipeline, a degenerate repetition loop superseding 2026-08-08's inconclusive short-fragment result).",
+        ),
+        "hi" => (
             "garbled",
             "The correct script appeared, but the text was not coherent language, in real testing on 2026-08-08.",
         ),
+        "rw" | "xh" => (
+            "garbled",
+            "Real script/vocabulary and plausible target-language morphology appeared in 2026-08-10 real RAG-pipeline testing, but the text was not coherent language (rw: starts real, degenerates into a repetition loop; xh: plausible prefixes, circular phrasing) — supersedes 2026-08-08's generic 'failed: pure English' result for both.",
+        ),
+        "zu" => (
+            "failed",
+            "Real testing on 2026-08-10 (full RAG pipeline) found the model substituted a different real language (Afrikaans-flavored text) instead of the requested one — a different, more specific failure mode than 2026-08-08's pure-English result, but still not usable Zulu.",
+        ),
         _ => (
             "failed",
-            "Real testing on 2026-08-08 got a response entirely in English (or degenerate token repetition) despite an explicit instruction not to use English.",
+            "Real testing (2026-08-08 raw generation, reconfirmed for ha/yo/lg/luo/sn on 2026-08-10 with the corrected RAG pipeline) got a response entirely in English (or degenerate token repetition) despite an explicit instruction not to use English.",
         ),
     }
 }

@@ -203,13 +203,21 @@ export function AskAtlas({ runtimeStatus }: { runtimeStatus: RuntimeStatusDto | 
 
   function buildQuery(question: string) {
     const trimmed = question.trim();
+    // The language directive must never be folded into the question
+    // text itself — RagAnswerer uses that exact text for retrieval, and
+    // a real measured run found doing so reliably broke retrieval
+    // confidence for every non-English request (see
+    // docs/adr/0017-language-directive-outside-retrieval-query.md).
+    // `language` is sent to the backend separately and only ever
+    // reaches the generation-side system preamble.
     if (!selectedLanguage || selectedLanguage.code === "en") {
-      return { runtimeQuery: trimmed, displayQuery: trimmed };
+      return { runtimeQuery: trimmed, displayQuery: trimmed, language: undefined };
     }
 
     return {
-      runtimeQuery: `Answer in ${selectedLanguage.englishName}. ${trimmed}`,
+      runtimeQuery: trimmed,
       displayQuery: `${trimmed} (${selectedLanguage.englishName})`,
+      language: selectedLanguage.englishName,
     };
   }
 
@@ -226,7 +234,7 @@ export function AskAtlas({ runtimeStatus }: { runtimeStatus: RuntimeStatusDto | 
     ]);
 
     try {
-      const response = await atlas.askAtlas(prepared.runtimeQuery);
+      const response = await atlas.askAtlas(prepared.runtimeQuery, prepared.language);
       setTurns((previous) =>
         previous.map((turn, index) =>
           index === previous.length - 1 ? { ...turn, status: "done", response } : turn,

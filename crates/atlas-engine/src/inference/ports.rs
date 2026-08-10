@@ -88,10 +88,18 @@ pub struct EmbeddingBatch {
 }
 
 /// Parameters for [`InferenceEngine::generate`].
+///
+/// `system`/`user` are carried separately, not pre-flattened into one
+/// prompt string — the real adapter applies the loaded model's own
+/// chat template to these at the worker boundary, since only there is
+/// the model (and its embedded template) actually available. See
+/// `docs/adr/0016-chat-template-application-in-inference-worker.md`.
 #[derive(Debug, Clone, PartialEq)]
 pub struct GenerateSpec {
-    /// The already-formatted prompt.
-    pub prompt: String,
+    /// System-level instruction/preamble content. May be empty.
+    pub system: String,
+    /// The user-facing turn content.
+    pub user: String,
     /// Generation parameters.
     pub params: InferenceParams,
 }
@@ -355,7 +363,8 @@ pub mod testing {
         fn fake_engine_rejects_generation_before_a_model_is_loaded() {
             let engine = FakeInferenceEngine::new(vec!["hi".to_string()]);
             let result = engine.generate(GenerateSpec {
-                prompt: "hello".to_string(),
+                system: String::new(),
+                user: "hello".to_string(),
                 params: atlas_domain::InferenceParams::default(),
             });
             assert!(matches!(result, Err(InferenceEngineError::NotLoaded)));
@@ -376,7 +385,8 @@ pub mod testing {
 
             let stream = engine
                 .generate(GenerateSpec {
-                    prompt: "hi".to_string(),
+                    system: String::new(),
+                    user: "hi".to_string(),
                     params: atlas_domain::InferenceParams::default(),
                 })
                 .unwrap();

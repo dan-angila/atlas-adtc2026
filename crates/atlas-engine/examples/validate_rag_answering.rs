@@ -150,6 +150,7 @@ fn main() {
                 max_tokens: 128,
                 ..InferenceParams::default()
             },
+            None,
         )
         .expect("answer call must not error");
 
@@ -205,6 +206,7 @@ fn main() {
             "What is the recommended treatment for a fractured femur?",
             threads,
             InferenceParams::default(),
+            None,
         )
         .expect("answer call must not error even when refusing");
 

@@ -16,7 +16,13 @@ use serde::{Deserialize, Serialize};
 /// [`WorkerRequest::Embed`]) needed to keep an embedding model resident
 /// alongside the generation model per
 /// `docs/adr/0006-quantization-model-tiering-ram-envelope.md`.
-pub const PROTOCOL_VERSION: u32 = 2;
+///
+/// Bumped to `3` for [`GenerateRequest`]'s `prompt: String` →
+/// `system`/`user: String` split, needed so the worker can apply the
+/// loaded model's own chat template instead of tokenizing raw
+/// concatenated text — see
+/// `docs/adr/0016-chat-template-application-in-inference-worker.md`.
+pub const PROTOCOL_VERSION: u32 = 3;
 
 /// Which of the worker's two independent model slots a request targets.
 ///
@@ -95,12 +101,23 @@ pub struct EmbedRequest {
 }
 
 /// Parameters for [`WorkerRequest::Generate`].
+///
+/// Carries `system`/`user` content separately, not a single
+/// pre-flattened prompt string — the worker is the only component with
+/// access to the loaded model's own embedded chat template
+/// (`LlamaModel::chat_template()`), so it is the one place that can
+/// correctly render these into the model's actual expected format. See
+/// `docs/adr/0016-chat-template-application-in-inference-worker.md`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GenerateRequest {
-    /// The already-formatted prompt to generate from. Chat templating
-    /// happens above this boundary (Conversation & Session context) —
-    /// the worker deals in raw prompt strings only.
-    pub prompt: String,
+    /// System-level instruction/preamble content. May be empty (e.g. a
+    /// raw benchmark prompt with no natural system/user split) — the
+    /// worker omits an empty system turn from the rendered template
+    /// rather than sending a blank one.
+    pub system: String,
+    /// The user-facing turn content — for a RAG answer, the assembled
+    /// evidence and question.
+    pub user: String,
     /// Generation parameters.
     pub params: InferenceParams,
 }
@@ -313,7 +330,8 @@ mod tests {
     #[test]
     fn generate_request_carries_inference_params() {
         let request = WorkerRequest::Generate(GenerateRequest {
-            prompt: "hello".to_string(),
+            system: String::new(),
+            user: "hello".to_string(),
             params: InferenceParams::default(),
         });
         let json = serde_json::to_string(&request).unwrap();

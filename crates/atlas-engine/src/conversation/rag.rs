@@ -174,6 +174,18 @@ impl RagAnswerer {
 
     /// Answers `query`, or refuses if no evidence exists for it.
     ///
+    /// `target_language` (a display name like `"Swahili"`, not a code)
+    /// is, when given, appended to the *system* preamble only — never
+    /// mixed into `query` itself. `query` alone drives embedding and
+    /// lexical search; a real measured run
+    /// (`docs/evaluation/multilingual-rag-retrieval-2026-08-10.md`)
+    /// found that folding a language directive straight into the query
+    /// text (as `"Answer in Swahili. {query}"`) reliably pushed
+    /// `lexical_overlap_fraction` below the `Strong`-confidence
+    /// threshold for every non-English request tested against the real
+    /// healthcare corpus — not a generation problem, a retrieval one.
+    /// See `docs/adr/0017-language-directive-outside-retrieval-query.md`.
+    ///
     /// # Errors
     ///
     /// Returns [`RagError`] if embedding the query, searching the
@@ -183,6 +195,7 @@ impl RagAnswerer {
         query: &str,
         thread_count: i32,
         params: InferenceParams,
+        target_language: Option<&str>,
     ) -> Result<QueryOutcome, RagError> {
         let embedding = self
             .inference
@@ -214,7 +227,13 @@ impl RagAnswerer {
         }
 
         let evidence = select_evidence(&results, &self.config);
-        let prompt = assemble_prompt(query, &evidence, confidence, &self.config.context_budget);
+        let (system, user) = assemble_prompt(
+            query,
+            &evidence,
+            confidence,
+            &self.config.context_budget,
+            target_language,
+        );
         let citations = evidence
             .iter()
             .map(|result| self.build_citation(result))
@@ -222,7 +241,11 @@ impl RagAnswerer {
 
         let stream = self
             .inference
-            .generate(GenerateSpec { prompt, params })
+            .generate(GenerateSpec {
+                system,
+                user,
+                params,
+            })
             .map_err(RagError::Generation)?;
 
         Ok(QueryOutcome::Answered {
@@ -291,24 +314,48 @@ const SYSTEM_PREAMBLE_STRONG: &str = "You are a healthcare reference assistant. 
 
 const SYSTEM_PREAMBLE_WEAK: &str = "You are a healthcare reference assistant. The evidence below is only weakly related to the question — it was found by just one retrieval method, not corroborated by both. Answer cautiously: state clearly that your supporting evidence is limited, cite what is available, and do not present a confident answer if the evidence does not actually support one. Do not add information that is not present in the evidence. You are not a substitute for a qualified healthcare professional.";
 
-/// Assembles the final prompt: a confidence-appropriate system preamble
-/// (Phase 5's evidence-gated generation — Strong evidence gets a direct-
-/// answer instruction, Weak evidence gets an explicit uncertainty
-/// instruction), then evidence chunks added in ranked order until the
-/// token budget (via the existing [`ContextManager`]) is exhausted, then
-/// the user's question. A chunk that doesn't fit is skipped — never
+/// Assembles the final prompt as a `(system, user)` pair — a
+/// confidence-appropriate system preamble (Phase 5's evidence-gated
+/// generation — Strong evidence gets a direct-answer instruction, Weak
+/// evidence gets an explicit uncertainty instruction) separate from the
+/// user-turn content (evidence chunks added in ranked order until the
+/// token budget, via the existing [`ContextManager`], is exhausted,
+/// then the question). A chunk that doesn't fit is skipped — never
 /// truncated mid-sentence — and the next, smaller candidate is tried.
+///
+/// Returned as two strings, not one pre-flattened prompt: chat-template
+/// rendering (role-delimited system/user turns) happens at the worker
+/// boundary, where the loaded model's own template is actually
+/// available — see
+/// `docs/adr/0016-chat-template-application-in-inference-worker.md`.
+/// The token-budget check below still measures against the
+/// concatenated form, since that's a close, conservative proxy for the
+/// chat-templated length (templating adds a small, roughly constant
+/// number of special-token characters on top).
+///
+/// `target_language`, when given, is appended to the system preamble
+/// only — `query` (used verbatim for the `Question:` line and, by the
+/// caller, for retrieval) never carries a language directive. See
+/// `RagAnswerer::answer`'s doc comment and
+/// `docs/adr/0017-language-directive-outside-retrieval-query.md` for
+/// why that separation is load-bearing, not stylistic.
 fn assemble_prompt(
     query: &str,
     evidence: &[RetrievedChunk],
     confidence: RetrievalConfidence,
     budget: &ContextBudget,
-) -> String {
+    target_language: Option<&str>,
+) -> (String, String) {
     let manager = ContextManager::new(*budget);
-    let preamble = match confidence {
+    let base_preamble = match confidence {
         RetrievalConfidence::Strong => SYSTEM_PREAMBLE_STRONG,
         RetrievalConfidence::Weak | RetrievalConfidence::NoEvidence => SYSTEM_PREAMBLE_WEAK,
     };
+    let preamble = match target_language {
+        Some(language) => format!("{base_preamble} Answer in {language}."),
+        None => base_preamble.to_string(),
+    };
+    let preamble = preamble.as_str();
 
     let mut evidence_section = String::new();
     for (index, result) in evidence.iter().enumerate() {
@@ -323,14 +370,15 @@ fn assemble_prompt(
             result.chunk.text
         );
         let candidate_prompt = format!(
-            "{preamble}\n\nEvidence:{evidence_section}{candidate_addition}\n\nQuestion: {query}\nAnswer:"
+            "{preamble}\n\nEvidence:{evidence_section}{candidate_addition}\n\nQuestion: {query}"
         );
         if manager.fits_within_budget(&candidate_prompt) {
             evidence_section.push_str(&candidate_addition);
         }
     }
 
-    format!("{preamble}\n\nEvidence:{evidence_section}\n\nQuestion: {query}\nAnswer:")
+    let user = format!("Evidence:{evidence_section}\n\nQuestion: {query}");
+    (preamble.to_string(), user)
 }
 
 #[cfg(test)]
@@ -475,6 +523,7 @@ mod tests {
                 "a question with no matching evidence",
                 4,
                 InferenceParams::default(),
+                None,
             )
             .expect("answer must not error when there's simply no evidence");
 
@@ -542,6 +591,7 @@ mod tests {
                 "Is it safe to take warfarin together with ibuprofen?",
                 4,
                 InferenceParams::default(),
+                None,
             )
             .expect("weak evidence should refuse, not error");
 
@@ -592,7 +642,7 @@ mod tests {
             .unwrap();
 
         let outcome = answerer
-            .answer("amoxicillin dosage", 4, InferenceParams::default())
+            .answer("amoxicillin dosage", 4, InferenceParams::default(), None)
             .expect("answer must succeed with matching evidence");
 
         match outcome {
@@ -668,18 +718,58 @@ mod tests {
         }];
         let budget = ContextAssemblyConfig::default().context_budget;
 
-        let strong_prompt = assemble_prompt(
+        let (strong_system, strong_user) = assemble_prompt(
             "a question",
             &evidence,
             RetrievalConfidence::Strong,
             &budget,
+            None,
         );
-        assert!(strong_prompt.contains("Answer the question using ONLY the evidence"));
-        assert!(strong_prompt.contains("some evidence text"));
+        assert!(strong_system.contains("Answer the question using ONLY the evidence"));
+        assert!(strong_user.contains("some evidence text"));
 
-        let weak_prompt =
-            assemble_prompt("a question", &evidence, RetrievalConfidence::Weak, &budget);
-        assert!(weak_prompt.contains("Answer cautiously"));
+        let (weak_system, _weak_user) = assemble_prompt(
+            "a question",
+            &evidence,
+            RetrievalConfidence::Weak,
+            &budget,
+            None,
+        );
+        assert!(weak_system.contains("Answer cautiously"));
+    }
+
+    #[test]
+    fn assemble_prompt_appends_the_language_directive_to_the_system_preamble_only() {
+        // Regression test for a real bug: folding "Answer in Swahili."
+        // into the *query* text (rather than the system preamble) added
+        // content words absent from the English corpus, which dragged
+        // `lexical_overlap_fraction` below the Strong-confidence
+        // threshold and caused every non-English Ask Atlas request to
+        // be refused before generation ever ran — see
+        // docs/adr/0017-language-directive-outside-retrieval-query.md.
+        let document_id: DocumentId = Id::new();
+        let evidence = vec![RetrievedChunk {
+            chunk: chunk(document_id, "some evidence text", "Section"),
+            score: 1.0,
+            matched_lexical: true,
+            matched_semantic: true,
+        }];
+        let budget = ContextAssemblyConfig::default().context_budget;
+
+        let (system, user) = assemble_prompt(
+            "What are the symptoms of malaria?",
+            &evidence,
+            RetrievalConfidence::Strong,
+            &budget,
+            Some("Swahili"),
+        );
+        assert!(system.contains("Answer in Swahili."));
+        assert!(
+            !user.contains("Swahili"),
+            "the language directive must never appear in the user/query text — it must stay \
+             out of the string retrieval already ran against"
+        );
+        assert!(user.contains("What are the symptoms of malaria?"));
     }
 
     #[test]
@@ -705,19 +795,20 @@ mod tests {
             reserved_for_response: 50,
         };
 
-        let prompt = assemble_prompt(
+        let (_system, user) = assemble_prompt(
             "a question",
             &evidence,
             RetrievalConfidence::Strong,
             &tiny_budget,
+            None,
         );
 
         assert!(
-            !prompt.contains("Huge Section"),
+            !user.contains("Huge Section"),
             "an oversized chunk must be dropped whole, not truncated into the prompt"
         );
         assert!(
-            prompt.contains("small fitting chunk"),
+            user.contains("small fitting chunk"),
             "a smaller chunk after a dropped one must still be tried and included"
         );
     }
@@ -779,7 +870,7 @@ mod tests {
             loaded_answerer(vec!["a generated answer".to_string()], true, true);
         amoxicillin_only_corpus(&inference, &knowledge);
         answerer
-            .answer(query, 4, InferenceParams::default())
+            .answer(query, 4, InferenceParams::default(), None)
             .expect("answer must not error")
     }
 
@@ -932,6 +1023,7 @@ mod tests {
                 "is it true that amoxicillin is effective against viral infections?",
                 4,
                 InferenceParams::default(),
+                None,
             )
             .expect("answer must not error");
 

@@ -59,6 +59,21 @@ pub enum WorkerRuntimeError {
     /// model has no pooling configured).
     #[error("failed to read embedding: {0}")]
     Embeddings(#[from] llama_cpp_2::EmbeddingsError),
+
+    /// Building a [`llama_cpp_2::model::LlamaChatMessage`] failed — only
+    /// possible if `system`/`user` content contains a null byte, since
+    /// that can't be represented in the `CString` the FFI boundary
+    /// needs.
+    #[error("failed to build a chat message: {0}")]
+    ChatMessage(#[from] llama_cpp_2::NewLlamaChatMessageError),
+
+    /// A chat template exists on the model but rendering it against the
+    /// given messages failed (malformed template, encoding issue). Does
+    /// **not** cover the "no template at all" case — that's not an
+    /// error, see `Worker::generate`'s raw-concatenation fallback
+    /// (ADR-0016).
+    #[error("failed to apply the model's chat template: {0}")]
+    ChatTemplateApply(#[from] llama_cpp_2::ApplyChatTemplateError),
 }
 
 impl WorkerRuntimeError {
@@ -101,7 +116,9 @@ impl WorkerRuntimeError {
             | Self::Tokenize(_)
             | Self::Detokenize(_)
             | Self::BatchAdd(_)
-            | Self::Decode(_) => ambiguous_kind,
+            | Self::Decode(_)
+            | Self::ChatMessage(_)
+            | Self::ChatTemplateApply(_) => ambiguous_kind,
         };
         WorkerError {
             kind,

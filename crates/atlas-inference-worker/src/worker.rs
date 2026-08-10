@@ -132,10 +132,20 @@ impl Worker {
         *self.slot_mut(slot) = None;
     }
 
-    /// Generates a completion for `request.prompt`, invoking `on_token`
-    /// once per generated token as it's produced (for streaming back to
-    /// the caller) and returning final statistics once generation
-    /// completes.
+    /// Generates a completion for `request.system`/`request.user`,
+    /// invoking `on_token` once per generated token as it's produced
+    /// (for streaming back to the caller) and returning final statistics
+    /// once generation completes.
+    ///
+    /// `system`/`user` are rendered through the loaded model's own
+    /// embedded chat template before tokenization (falling back to raw
+    /// concatenation if the model has none) — see
+    /// [`render_prompt`] and
+    /// `docs/adr/0016-chat-template-application-in-inference-worker.md`.
+    /// `on_token` only ever receives text outside a `<think>...</think>`
+    /// span (see [`ThinkFilter`]); `generated_token_count` below still
+    /// counts every sampled token, thinking included, since that's the
+    /// real compute cost regardless of what's shown to the caller.
     ///
     /// `on_token` returns `true` to continue generating and `false` to
     /// stop early — used by the IPC server to abort generation the
@@ -145,8 +155,9 @@ impl Worker {
     /// # Errors
     ///
     /// Returns [`WorkerRuntimeError::NotLoaded`] if no model is loaded,
-    /// or a generation-specific error if tokenization, context creation,
-    /// or decoding fails partway through.
+    /// or a generation-specific error if chat-message construction,
+    /// template application, tokenization, context creation, or decoding
+    /// fails partway through.
     pub fn generate(
         &self,
         request: &GenerateRequest,
@@ -165,7 +176,8 @@ impl Worker {
             .with_n_threads_batch(thread_count);
         let mut context = model.new_context(&self.backend, ctx_params)?;
 
-        let tokens = model.str_to_token(&request.prompt, AddBos::Always)?;
+        let prompt = render_prompt(model, &request.system, &request.user)?;
+        let tokens = model.str_to_token(&prompt, AddBos::Always)?;
         let prompt_token_count = u32::try_from(tokens.len()).unwrap_or(u32::MAX);
 
         let prompt_eval_start = Instant::now();
@@ -186,6 +198,7 @@ impl Worker {
         let mut decoder = encoding_rs::UTF_8.new_decoder();
         let mut next_position = i32::try_from(tokens.len()).unwrap_or(i32::MAX);
         let mut generated_token_count = 0u32;
+        let mut think_filter = ThinkFilter::default();
 
         let generation_start = Instant::now();
         loop {
@@ -202,11 +215,16 @@ impl Worker {
             }
 
             let piece = model.token_to_piece(token, &mut decoder, false, None)?;
-            let should_continue = on_token(TokenChunk {
-                text: piece,
-                token_id: token.0,
-            });
             generated_token_count += 1;
+            let visible = think_filter.push(&piece);
+            let should_continue = if visible.is_empty() {
+                true
+            } else {
+                on_token(TokenChunk {
+                    text: visible,
+                    token_id: token.0,
+                })
+            };
             if !should_continue {
                 break;
             }
@@ -317,6 +335,162 @@ impl Worker {
     }
 }
 
+/// Qwen3's documented soft-switch to close its `<think>...</think>`
+/// reasoning block almost immediately instead of spending the
+/// generation budget on it — appended to the user turn before
+/// templating. Model-family-specific, not portable; see
+/// `docs/adr/0016-chat-template-application-in-inference-worker.md`'s
+/// Revisit Trigger for what to do when the loaded model changes.
+const NO_THINK_SUFFIX: &str = " /no_think";
+
+/// Renders `system`/`user` into the actual prompt string to tokenize,
+/// using `model`'s own embedded chat template
+/// ([`LlamaModel::chat_template`] + [`LlamaModel::apply_chat_template`])
+/// when one exists, per ADR-0016. `system` is omitted from the
+/// rendered messages when empty, rather than sent as a blank system
+/// turn.
+///
+/// Falls back to the pre-ADR-0016 raw concatenation
+/// (`"{system}\n\n{user}\nAnswer:"`) when the model has no embedded
+/// template ([`llama_cpp_2::ChatTemplateError::MissingTemplate`]) —
+/// this keeps a future non-chat-tuned or base model working exactly as
+/// today's models do, rather than failing to generate at all.
+///
+/// # Errors
+///
+/// Returns [`WorkerRuntimeError::ChatMessage`] if `system`/`user`
+/// contain a null byte, or [`WorkerRuntimeError::ChatTemplateApply`] if
+/// the model *has* a template but rendering against it fails for some
+/// other reason (malformed template, encoding issue) — distinct from
+/// simply having no template, which is not an error.
+fn render_prompt(
+    model: &LlamaModel,
+    system: &str,
+    user: &str,
+) -> Result<String, WorkerRuntimeError> {
+    use llama_cpp_2::model::LlamaChatMessage;
+
+    let Ok(template) = model.chat_template(None) else {
+        // No embedded template (or it couldn't be read) — preserve the
+        // exact prior behavior rather than failing generation outright.
+        return Ok(if system.is_empty() {
+            format!("{user}\nAnswer:")
+        } else {
+            format!("{system}\n\n{user}\nAnswer:")
+        });
+    };
+
+    let user_with_switch = format!("{user}{NO_THINK_SUFFIX}");
+    let mut messages = Vec::with_capacity(2);
+    if !system.is_empty() {
+        messages.push(LlamaChatMessage::new(
+            "system".to_string(),
+            system.to_string(),
+        )?);
+    }
+    messages.push(LlamaChatMessage::new("user".to_string(), user_with_switch)?);
+
+    Ok(model.apply_chat_template(&template, &messages, true)?)
+}
+
+/// Streaming filter that suppresses a leading `<think>...</think>` span
+/// (Qwen3's reasoning block, even when empty after `/no_think`) from
+/// text forwarded to the caller, without buffering more than
+/// necessary. Token accounting in [`Worker::generate`] is unaffected —
+/// this only filters what's *shown*.
+///
+/// Four states, entered in order and never revisited:
+/// - `Buffering(prefix)`: has seen a prefix of `"<think>"` too short to
+///   confirm or rule it out yet.
+/// - `InsideThink(suppressed)`: confirmed a think block started;
+///   accumulating suppressed text until `"</think>"` closes it.
+/// - `AfterThink`: just closed a think block; trimming leading `'\n'`
+///   characters from subsequent pieces (which, in real token-by-token
+///   streaming, usually arrive as their own separate piece(s) rather
+///   than bundled with `"</think>"` itself) until real content starts.
+/// - `Passthrough`: either ruled out a think block (the buffered prefix
+///   stopped matching `"<think>"`) or finished trimming post-close
+///   whitespace — everything from here on is forwarded unchanged.
+#[derive(Default)]
+struct ThinkFilter {
+    state: ThinkFilterState,
+}
+
+enum ThinkFilterState {
+    Buffering(String),
+    InsideThink(String),
+    AfterThink,
+    Passthrough,
+}
+
+impl Default for ThinkFilterState {
+    fn default() -> Self {
+        Self::Buffering(String::new())
+    }
+}
+
+impl ThinkFilter {
+    const OPEN_TAG: &'static str = "<think>";
+    const CLOSE_TAG: &'static str = "</think>";
+
+    /// Feeds one newly-generated text piece in, returning the substring
+    /// (possibly empty) that should actually be forwarded to the
+    /// caller.
+    fn push(&mut self, piece: &str) -> String {
+        match std::mem::replace(&mut self.state, ThinkFilterState::Passthrough) {
+            ThinkFilterState::Passthrough => piece.to_string(),
+            ThinkFilterState::AfterThink => self.trim_leading_newlines(piece),
+            ThinkFilterState::InsideThink(mut suppressed) => {
+                suppressed.push_str(piece);
+                if let Some(index) = suppressed.find(Self::CLOSE_TAG) {
+                    let after_close = suppressed[index + Self::CLOSE_TAG.len()..].to_string();
+                    self.trim_leading_newlines(&after_close)
+                } else {
+                    self.state = ThinkFilterState::InsideThink(suppressed);
+                    String::new()
+                }
+            }
+            ThinkFilterState::Buffering(mut buffered) => {
+                buffered.push_str(piece);
+                if let Some(stripped) = buffered.strip_prefix(Self::OPEN_TAG) {
+                    let remainder = stripped.to_string();
+                    if let Some(index) = remainder.find(Self::CLOSE_TAG) {
+                        let after_close = remainder[index + Self::CLOSE_TAG.len()..].to_string();
+                        self.trim_leading_newlines(&after_close)
+                    } else {
+                        self.state = ThinkFilterState::InsideThink(remainder);
+                        String::new()
+                    }
+                } else if Self::OPEN_TAG.starts_with(&buffered) {
+                    // Still a valid, shorter prefix of "<think>" — keep
+                    // waiting for more text before deciding.
+                    self.state = ThinkFilterState::Buffering(buffered);
+                    String::new()
+                } else {
+                    // Can never become "<think>" now — this was never a
+                    // think block; flush everything buffered so far.
+                    self.state = ThinkFilterState::Passthrough;
+                    buffered
+                }
+            }
+        }
+    }
+
+    /// Strips leading `'\n'` characters from `piece`, staying in
+    /// `AfterThink` (to keep trimming the *next* piece too) if `piece`
+    /// turned out to be nothing but newlines, or moving to `Passthrough`
+    /// the moment real content is found.
+    fn trim_leading_newlines(&mut self, piece: &str) -> String {
+        let trimmed = piece.trim_start_matches('\n');
+        self.state = if trimmed.is_empty() {
+            ThinkFilterState::AfterThink
+        } else {
+            ThinkFilterState::Passthrough
+        };
+        trimmed.to_string()
+    }
+}
+
 /// Builds a sampler chain from [`InferenceParams`]. A `temperature` of
 /// `0.0` degenerates to greedy decoding (the standard convention across
 /// inference runtimes: temperature 0 means "always pick the most likely
@@ -352,7 +526,8 @@ mod tests {
         assert!(worker.uptime().as_secs() < 5);
 
         let request = GenerateRequest {
-            prompt: "hello".to_string(),
+            system: String::new(),
+            user: "hello".to_string(),
             params: InferenceParams::default(),
         };
         let result = worker.generate(&request, 512, 1, |_| true);
@@ -373,5 +548,83 @@ mod tests {
         // since it requires a loaded model's vocabulary. This test only
         // guards the pure parameter-plumbing path.
         let _sampler = build_sampler(&InferenceParams::default());
+    }
+
+    // ---------------------------------------------------------------
+    // ThinkFilter — pure logic, no model needed. Real end-to-end
+    // confirmation that a real loaded Qwen3-4B model's think block is
+    // filtered correctly lives in the multilingual test matrix
+    // (docs/evaluation/), not here.
+    // ---------------------------------------------------------------
+
+    fn filtered(pieces: &[&str]) -> String {
+        let mut filter = ThinkFilter::default();
+        let mut out = String::new();
+        for piece in pieces {
+            out.push_str(&filter.push(piece));
+        }
+        out
+    }
+
+    #[test]
+    fn think_filter_passes_through_a_response_with_no_think_block_at_all() {
+        assert_eq!(filtered(&["Hello", ", world", "!"]), "Hello, world!");
+    }
+
+    #[test]
+    fn think_filter_suppresses_an_empty_think_block() {
+        assert_eq!(
+            filtered(&["<think>", "\n\n", "</think>", "\n\n", "The answer."]),
+            "The answer."
+        );
+    }
+
+    #[test]
+    fn think_filter_suppresses_a_nonempty_think_block() {
+        let out = filtered(&[
+            "<think>",
+            "Let me reason about this for a while.",
+            " More reasoning.",
+            "</think>",
+            "\n\n",
+            "Real answer here.",
+        ]);
+        assert_eq!(out, "Real answer here.");
+        assert!(!out.contains("reason"));
+    }
+
+    #[test]
+    fn think_filter_handles_tags_split_across_many_small_pieces() {
+        // Simulates real token-by-token streaming, where "<think>" and
+        // "</think>" each arrive as several sub-token fragments rather
+        // than one clean piece.
+        let out = filtered(&[
+            "<",
+            "th",
+            "ink",
+            ">",
+            "hidden",
+            " reasoning",
+            "</",
+            "th",
+            "ink",
+            ">",
+            " visible",
+        ]);
+        assert_eq!(out, " visible");
+    }
+
+    #[test]
+    fn think_filter_flushes_buffered_text_that_never_becomes_a_think_tag() {
+        // "<" alone is a valid prefix of "<think>" and must be
+        // buffered; "th" then breaks the match ("<th" is not a prefix
+        // of "<think>" — wait, it is; use a genuinely non-matching
+        // continuation instead).
+        assert_eq!(filtered(&["<", "b", "old text"]), "<bold text");
+    }
+
+    #[test]
+    fn think_filter_handles_a_single_piece_containing_both_tags() {
+        assert_eq!(filtered(&["<think>reasoning</think>answer"]), "answer");
     }
 }
