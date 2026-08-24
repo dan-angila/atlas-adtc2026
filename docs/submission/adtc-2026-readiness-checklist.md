@@ -50,12 +50,53 @@ from this checklist's date.**
 | # | Requirement | Status | Evidence |
 |---|---|---|---|
 | 1 | Public GitHub repo | ✅ Done | `github.com/dan-angila/atlas-adtc2026`, pushed and current |
-| 2 | Repo uses the **approved ADTC 2026 Report Template** | ❌ **Not done** | This repo's README/docs structure predates the official template's publication and has not been reconciled against it — the template repo has not even been cloned to compare structure. This is a real, named gap, not yet assessed for scope. |
-| 3 | Comprehensive project report (problem, constraints, design alternatives, tool choices, benchmarks, screenshots/video, dev journey) | ⚠️ Partial | The content mostly exists, scattered across `README.md`, `docs/adr/`, `docs/design/`, `docs/benchmarks/` — it has never been assembled into the single report shape the template likely expects. Cannot confirm shape/completeness without requirement #2 first. |
+| 2 | Repo uses the **approved ADTC 2026 Report Template** | ✅ Done (2026-08-24) | Template cloned and diffed. Scope turned out to be small: the template mandates four root artifacts (`metadata.json`, `download_model.sh`, `REPORT.md`, `model/`) plus `.gitignore` rules, **not** a docs restructuring. All four now exist at the repo root; `.gitignore` excludes `*.gguf`, `/model/`, `/models/`. The existing `docs/` tree is unaffected and remains the detailed evidence base `REPORT.md` cites. |
+| 3 | Comprehensive project report (problem, constraints, design alternatives, tool choices, benchmarks, screenshots/video, dev journey) | ⚠️ Mostly done | [`REPORT.md`](../../REPORT.md) now assembles problem, design decisions and rejected alternatives, constraints, and benchmarks into the four sections the template asks for, citing the underlying `docs/` reports rather than duplicating them. It also states the five known gaps outright. **Still missing: screenshots and the demo video** (requirement #4). |
 | 4 | Demo video, max 2 minutes | ❌ Not done | No video exists. A written demo workflow (`docs/submission/demo-workflow.md` — see below) is a prerequisite for scripting one, not a substitute for it. |
-| 5 | Run the official `adtc-profiler` tool against the model | ❌ **Not done** | Tool identified this session (see below); never cloned or run against this project's models. This is the single highest-leverage next action — it directly produces the throughput/efficiency/thermal numbers requirement #… needs, using the competition's own accepted methodology, and (per its own README) supports running on non-reference Linux hardware with documented ±15–25% tolerance normalization — this project's prior "blocked without reference hardware" framing (`gate-1-readiness.md` Gap 3) is **more solvable than previously assessed**, not fully blocked. |
+| 5 | Run the official `adtc-profiler` tool against the model | ✅ Done (2026-08-24) | Installed `adtc-profiler 0.1.0` and ran it in participant mode against the real `model/Qwen3-4B-Q4_K_M.gguf`; output committed as `submission.json` with `"measured_on": "participant_laptop"`. Full numbers in the "Profiler run" section below and in `REPORT.md` §4.1. The prior blocker (no Python 3.11+ / no `llama-bench` on PATH) is resolved. |
 | 6 | Select one primary problem domain | ✅ Done (implicit) | Healthcare & Medical — consistent throughout ADR-0014 and every doc in this repo |
 | 7 | Team eligibility (1–3 people, African-nation residency, age of majority) | ⚠️ Not this repo's to verify | Founder-level administrative fact, not a code/doc artifact — flagging as out of engineering scope, not silently assumed satisfied |
+
+## Profiler run — 2026-08-24
+
+`adtc-profiler 0.1.0` was installed and run in participant mode against
+the real `model/Qwen3-4B-Q4_K_M.gguf`. Output committed as
+`submission.json` at the repo root. Real measured values:
+
+| Metric | Value |
+|---|---|
+| `accuracy[0]` | `arc_easy`, `acc_norm` **0.76**, 50 samples, en |
+| `throughput.tokens_per_second_generation` | 11.17 tok/s |
+| `throughput.first_token_latency_ms` | 9,794.54 ms |
+| `memory.peak_rss_mb` | 4,285.70 |
+| `memory.steady_state_rss_mb` | 4,147.35 |
+| `cpu_thermal.cpu_percent_p99` | 61.4 % |
+| `cpu_thermal.core_temp_c_peak` | 49.9 °C |
+| `cpu_thermal.throttled` | false |
+| `model_info.params_match` | true (4,022,468,096 actual vs "4B" claimed) |
+| `environment.measured_on` | `participant_laptop` |
+
+This was a **full** run including the accuracy stage — the profiler's
+own README states the shipped report should come from a full run, since
+accuracy carries 50% of the score. The `--skip-accuracy` flag was used
+only for an earlier smoke test and its output was discarded. Note the
+`arc_easy` score measures the bare model on general science QA, not
+Atlas's healthcare RAG pipeline; `REPORT.md` §4.1 spells out that
+distinction, and requirement-#3's accuracy gap in the table above is
+**not** closed by it.
+
+Gap 3 (reference-hardware validation) is **narrowed but not closed**:
+the run happened on Kali / Ryzen 7 5825U / 19.4 GB, still not the
+reference profile. The tooling blocker named in the 2026-08-09 version of
+this document is resolved — Python 3.13 plus a `llama-bench` binary from
+a local llama.cpp build was all it required. The hardware gap remains,
+and `REPORT.md` §4.2 states which numbers are and are not likely to
+transfer.
+
+Note that the profiler's 4.19 GB peak RSS measures the submitted model
+alone, whereas this repo's earlier ≈4.81 GiB figure measures the whole
+application with both models resident. Both are retained; the larger one
+is the honest answer to "does Atlas fit in 8 GB".
 
 ## What this session changed
 

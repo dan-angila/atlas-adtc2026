@@ -18,6 +18,7 @@ Cargo.lock.bak
 *.sqlite
 *.sqlite3
 *.db
+/model/
 /models/
 /knowledge-bases/
 
@@ -35,3 +36,8 @@ Thumbs.db
 # Environment / local config
 .env
 .env.local
+
+# ADTC profiler local artifacts (submission.json is committed as evidence)
+audit.json
+verdict.json
+model/*.partial

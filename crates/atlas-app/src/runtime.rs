@@ -96,11 +96,17 @@ fn find_worker_binary() -> Option<PathBuf> {
     ])
 }
 
-/// Locates a model file: an env var override, then a repository-relative
+/// Locates a model file: an env var override, then the repository-relative
+/// `model/` directory `download_model.sh` populates, then the legacy
 /// `models/` path.
+///
+/// `model/` is the directory name the ADTC 2026 submission template
+/// mandates, so it is where the download script puts the weights; `models/`
+/// stays in the list so existing checkouts and docs keep working.
 fn find_model(env_var: &str, repo_relative_name: &str) -> Option<PathBuf> {
     first_existing(&[
         env::var(env_var).ok().map(PathBuf::from),
+        Some(PathBuf::from("model").join(repo_relative_name)),
         Some(PathBuf::from("models").join(repo_relative_name)),
     ])
 }
@@ -132,7 +138,7 @@ fn bootstrap() -> RuntimeStatus {
     else {
         return RuntimeStatus::Unavailable {
             reason: "generation model not found (set ATLAS_GENERATION_MODEL, or place a GGUF \
-                      model at models/Qwen3-4B-Q4_K_M.gguf)"
+                      model at model/Qwen3-4B-Q4_K_M.gguf, e.g. via ./download_model.sh)"
                 .to_string(),
         };
     };
@@ -140,9 +146,10 @@ fn bootstrap() -> RuntimeStatus {
         find_model("ATLAS_EMBEDDING_MODEL", "nomic-embed-text-v1.5-Q8_0.gguf")
     else {
         return RuntimeStatus::Unavailable {
-            reason: "embedding model not found (set ATLAS_EMBEDDING_MODEL, or place a GGUF \
-                      model at models/nomic-embed-text-v1.5-Q8_0.gguf)"
-                .to_string(),
+            reason:
+                "embedding model not found (set ATLAS_EMBEDDING_MODEL, or place a GGUF \
+                      model at model/nomic-embed-text-v1.5-Q8_0.gguf, e.g. via ./download_model.sh)"
+                    .to_string(),
         };
     };
     let Some(knowledge_base_path) = find_knowledge_base() else {

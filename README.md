@@ -211,10 +211,13 @@ cd ui && npm install && npm run build && cd ..
 cargo run -p atlas-app
 ```
 
-Either way, place the two required GGUF models at
-`models/Qwen3-4B-Q4_K_M.gguf` and
-`models/nomic-embed-text-v1.5-Q8_0.gguf` (or set
-`ATLAS_GENERATION_MODEL`/`ATLAS_EMBEDDING_MODEL`), and build the
+Either way, fetch the two required GGUF models with
+`bash download_model.sh` — it pulls them from their official public
+Hugging Face releases into `model/`, needs no credentials, and is safe
+to re-run. (You can also place them at `model/Qwen3-4B-Q4_K_M.gguf` and
+`model/nomic-embed-text-v1.5-Q8_0.gguf` by hand, or point
+`ATLAS_GENERATION_MODEL`/`ATLAS_EMBEDDING_MODEL` anywhere you like; the
+legacy `models/` directory is still searched.) Then build the
 healthcare knowledge base first (`cargo run -p atlas-engine --example
 build_healthcare_corpus`, or set `ATLAS_KNOWLEDGE_BASE`) — otherwise the
 app starts honestly in a "Runtime unavailable" state rather than
