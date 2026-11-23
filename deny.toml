@@ -26,18 +26,6 @@ yanked = "deny"
 # update` pulls a newer tauri/gtk-rs generation that drops them, or a
 # `cargo deny check` run reports one of these IDs is no longer present.
 ignore = [
-    # gtk-rs GTK3 bindings — unmaintained (superseded by gtk-rs v4-based
-    # gtk crates, which Tauri's Linux backend does not yet use).
-    "RUSTSEC-2024-0411", # atk
-    "RUSTSEC-2024-0412", # atk-sys
-    "RUSTSEC-2024-0413", # gdk
-    "RUSTSEC-2024-0414", # gdk-pixbuf
-    "RUSTSEC-2024-0415", # gdk-pixbuf-sys
-    "RUSTSEC-2024-0416", # gdk-sys
-    "RUSTSEC-2024-0417", # gdkwayland-sys
-    "RUSTSEC-2024-0418", # gdkx11
-    "RUSTSEC-2024-0419", # gdkx11-sys
-    "RUSTSEC-2024-0420", # gtk
     # proc-macro-error — unmaintained, pulled in transitively via the
     # gtk-rs chain above.
     "RUSTSEC-2024-0370",
